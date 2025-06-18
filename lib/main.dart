@@ -5,6 +5,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'core/theme/app_text_styles.dart';
+import 'widgets/section_title.dart';
+import 'widgets/drink_carousel.dart';
+import 'widgets/cafe_carousel.dart';
+import 'widgets/food_carousel.dart';
+import 'core/models.dart';
 
 void main() {
   runApp(const CoffitApp());
@@ -115,6 +120,32 @@ enum HomeMode { search, searchMap, map }
 class _HomePageState extends State<HomePage> {
   HomeMode _mode = HomeMode.map;
 
+  // Mock dáta (nahradíš Firebase)
+  final List<Drink> _drinks = const [
+    Drink(name: 'Matcha', imageUrl: ''),
+    Drink(name: 'Preso', imageUrl: ''),
+    Drink(name: 'Oppio', imageUrl: ''),
+    Drink(name: 'Latte', imageUrl: ''),
+    Drink(name: 'Cappuccino', imageUrl: ''),
+    Drink(name: 'Espresso', imageUrl: ''),
+  ];
+  final List<Cafe> _cafes = const [
+    Cafe(name: 'Saint Coffe', imageUrl: '', rating: 4.7, distanceKm: 1.2),
+    Cafe(name: 'Pauza Coffe and Cake', imageUrl: '', rating: 4.7, distanceKm: 1.5),
+    Cafe(name: 'Urban Cafe', imageUrl: '', rating: 4.5, distanceKm: 0.8),
+    Cafe(name: 'Coffee Point', imageUrl: '', rating: 4.6, distanceKm: 2.1),
+    Cafe(name: 'Café Dias', imageUrl: '', rating: 4.8, distanceKm: 1.9),
+    Cafe(name: 'Café Central', imageUrl: '', rating: 4.4, distanceKm: 2.5),
+  ];
+  final List<Food> _foods = const [
+    Food(name: 'Panini', imageUrl: ''),
+    Food(name: 'Koláče', imageUrl: ''),
+    Food(name: 'Toasty', imageUrl: ''),
+    Food(name: 'Croissant', imageUrl: ''),
+    Food(name: 'Bageta', imageUrl: ''),
+    Food(name: 'Cheesecake', imageUrl: ''),
+  ];
+
   void _onSheetChanged(double extent) {
     // Nastav režim podľa výšky sheetu
     if (extent < 0.35) {
@@ -137,7 +168,7 @@ class _HomePageState extends State<HomePage> {
           minChildSize: 0.12,
           maxChildSize: 1.0,
           snap: true,
-          snapSizes: const [0.12, 0.5, 1.0],
+          snapSizes: const [0.12, 0.75, 1.0],
           builder: (context, scrollController) {
             return NotificationListener<DraggableScrollableNotification>(
               onNotification: (notification) {
@@ -181,14 +212,10 @@ class _HomePageState extends State<HomePage> {
                         ),
                         child: Row(
                           children: [
-                            const SizedBox(width: 12),
-                            Container(
+                            SvgPicture.asset(
+                              'assets/icons/searchLupa.svg',
                               width: 24,
                               height: 24,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -202,19 +229,18 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    if (_mode != HomeMode.map) ...[
-                      // Tu môžeš pridať ďalší obsah pre režimy searchMap a search
-                      Center(
-                        child: Text(
-                          _mode == HomeMode.searchMap
-                              ? 'Režim: Mapa + Vyhľadávanie'
-                              : 'Režim: Vyhľadávanie',
-                          style: AppTextStyles.regular12,
-                        ),
-                      ),
-                      const SizedBox(height: 400), // Placeholder pre ďalší obsah
+                    const SectionTitle('Populárne nápoje', isLarge: true),
+                    DrinkCarousel(drinks: _drinks, height: 140, itemSize: 96),
+                    const SizedBox(height: 24),
+                    const SectionTitle('Kaviarne v okolí', isLarge: true),
+                    CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
+                    if (_mode == HomeMode.search) ...[
+                      const SizedBox(height: 24),
+                      const SectionTitle('Niečo pod zub', isLarge: true),
+                      FoodCarousel(foods: _foods, height: 140, itemSize: 96),
+                      const SizedBox(height: 32),
                     ] else ...[
-                      const SizedBox(height: 600), // Umožní drag aj v režime map
+                      const SizedBox(height: 32),
                     ],
                   ],
                 ),
