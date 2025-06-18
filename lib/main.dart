@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -10,8 +11,11 @@ import 'widgets/drink_carousel.dart';
 import 'widgets/cafe_carousel.dart';
 import 'widgets/food_carousel.dart';
 import 'core/models.dart';
+import 'core/firebase_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const CoffitApp());
 }
 
@@ -119,8 +123,10 @@ enum HomeMode { search, searchMap, map }
 
 class _HomePageState extends State<HomePage> {
   HomeMode _mode = HomeMode.map;
-
-  // Mock dáta (nahradíš Firebase)
+  final FirebaseService _firebaseService = FirebaseService();
+  Position? _currentPosition;
+  
+  // Mock dáta pre nápoje a jedlá (zatiaľ)
   final List<Drink> _drinks = const [
     Drink(name: 'Matcha', imageUrl: ''),
     Drink(name: 'Preso', imageUrl: ''),
@@ -129,14 +135,10 @@ class _HomePageState extends State<HomePage> {
     Drink(name: 'Cappuccino', imageUrl: ''),
     Drink(name: 'Espresso', imageUrl: ''),
   ];
-  final List<Cafe> _cafes = const [
-    Cafe(name: 'Saint Coffe', imageUrl: '', rating: 4.7, distanceKm: 1.2),
-    Cafe(name: 'Pauza Coffe and Cake', imageUrl: '', rating: 4.7, distanceKm: 1.5),
-    Cafe(name: 'Urban Cafe', imageUrl: '', rating: 4.5, distanceKm: 0.8),
-    Cafe(name: 'Coffee Point', imageUrl: '', rating: 4.6, distanceKm: 2.1),
-    Cafe(name: 'Café Dias', imageUrl: '', rating: 4.8, distanceKm: 1.9),
-    Cafe(name: 'Café Central', imageUrl: '', rating: 4.4, distanceKm: 2.5),
-  ];
+  
+  List<Cafe> _cafes = [];
+  bool _isLoadingCafes = true;
+  
   final List<Food> _foods = const [
     Food(name: 'Panini', imageUrl: ''),
     Food(name: 'Koláče', imageUrl: ''),
@@ -145,6 +147,84 @@ class _HomePageState extends State<HomePage> {
     Food(name: 'Bageta', imageUrl: ''),
     Food(name: 'Cheesecake', imageUrl: ''),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await _getCurrentLocation();
+    await _loadAndProcessCafes();
+  }
+
+  /// Získa aktuálnu polohu používateľa
+  Future<void> _getCurrentLocation() async {
+    try {
+      print("Zisťujem polohu používateľa...");
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        print("Povolenie na prístup k polohe zamietnuté. Žiadam znova.");
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print("Povolenie na prístup k polohe trvalo zamietnuté.");
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        print("Povolenie na prístup k polohe trvalo zamietnuté.");
+        return;
+      }
+      _currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      print("Poloha používateľa úspešne získaná: $_currentPosition");
+    } catch (e) {
+      print("Chyba pri získavaní polohy: $e");
+    }
+  }
+
+  /// Načíta kaviarne z Firebase
+  Future<void> _loadAndProcessCafes() async {
+    try {
+      if (!mounted) return;
+      setState(() => _isLoadingCafes = true);
+      
+      final cafes = await _firebaseService.getCafes();
+      print("Počet načítaných kaviarní: ${cafes.length}");
+
+      if (_currentPosition != null) {
+        print("Spracovávam kaviarne a počítam vzdialenosti...");
+        for (var cafe in cafes) {
+          final distanceInMeters = Geolocator.distanceBetween(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+            cafe.latitude,
+            cafe.longitude,
+          );
+          cafe.distanceKm = distanceInMeters / 1000;
+          print("- Kaviareň '${cafe.name}': vzdialenosť ${cafe.distanceKm.toStringAsFixed(2)} km");
+        }
+        cafes.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+        print("Kaviarne zotriedené podľa vzdialenosti.");
+      } else {
+        print("Poloha používateľa nie je dostupná. Vzdialenosti nebudú vypočítané.");
+      }
+
+      if (mounted) {
+        setState(() {
+          _cafes = cafes;
+          _isLoadingCafes = false;
+        });
+      }
+    } catch (e) {
+      print('Chyba pri načítaní a spracovaní kaviarní: $e');
+      if (mounted) {
+        setState(() => _isLoadingCafes = false);
+      }
+    }
+  }
 
   void _onSheetChanged(double extent) {
     // Nastav režim podľa výšky sheetu
@@ -162,7 +242,7 @@ class _HomePageState extends State<HomePage> {
     return Stack(
       children: [
         // Mapa je vždy na pozadí
-        const _MapView(),
+        _MapView(currentPosition: _currentPosition),
         DraggableScrollableSheet(
           initialChildSize: 0.12, // cca výška search baru
           minChildSize: 0.12,
@@ -233,7 +313,25 @@ class _HomePageState extends State<HomePage> {
                     DrinkCarousel(drinks: _drinks, height: 140, itemSize: 96),
                     const SizedBox(height: 24),
                     const SectionTitle('Kaviarne v okolí', isLarge: true),
-                    CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
+                    if (_isLoadingCafes)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_cafes.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Text(
+                            'Žiadne kaviarne neboli nájdené',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    else
+                      CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
                     if (_mode == HomeMode.search) ...[
                       const SizedBox(height: 24),
                       const SectionTitle('Niečo pod zub', isLarge: true),
@@ -254,7 +352,8 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _MapView extends StatefulWidget {
-  const _MapView();
+  final Position? currentPosition;
+  const _MapView({this.currentPosition});
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -262,8 +361,6 @@ class _MapView extends StatefulWidget {
 
 class _MapViewState extends State<_MapView> {
   GoogleMapController? _mapController;
-  Position? _currentPosition;
-  bool _isLoading = true;
 
   // Počiatočná pozícia (Bratislava) - použije sa, kým sa nezíska aktuálna poloha
   static const CameraPosition _initialPosition = CameraPosition(
@@ -272,82 +369,41 @@ class _MapViewState extends State<_MapView> {
   );
 
   @override
-  void initState() {
-    super.initState();
-    _getCurrentLocation();
-  }
-
-  /// Získa aktuálnu polohu používateľa
-  Future<void> _getCurrentLocation() async {
-    try {
-      // Kontrola povolení
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoading = false);
-          return;
-        }
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Získanie aktuálnej polohy
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      setState(() {
-        _currentPosition = position;
-        _isLoading = false;
-      });
-
-      // Presun kamery na aktuálnu polohu
-      if (_mapController != null) {
-        _mapController!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: LatLng(position.latitude, position.longitude),
-              zoom: 15.0,
-            ),
+  void didUpdateWidget(covariant _MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentPosition != null && widget.currentPosition != oldWidget.currentPosition) {
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
+            zoom: 15.0,
           ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
     return GoogleMap(
       onMapCreated: (GoogleMapController controller) {
         _mapController = controller;
         
         // Ak už máme aktuálnu polohu, presunieme kameru
-        if (_currentPosition != null) {
+        if (widget.currentPosition != null) {
           controller.animateCamera(
             CameraUpdate.newCameraPosition(
               CameraPosition(
-                target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
                 zoom: 15.0,
               ),
             ),
           );
         }
       },
-      initialCameraPosition: _currentPosition != null
+      initialCameraPosition: widget.currentPosition != null
           ? CameraPosition(
-              target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+              target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
               zoom: 15.0,
             )
           : _initialPosition,
