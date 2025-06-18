@@ -1,30 +1,46 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
 /// Všetky textové štýly a veľkosti fontov pre aplikáciu Coffit.
 class AppTextStyles {
-  static const TextStyle headline = TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.bold,
-    fontFamily: 'Inter',
-    color: Colors.black,
-  );
-  static const TextStyle title = TextStyle(
+  // Poppins Regular
+  static const TextStyle regular20 = TextStyle(
     fontSize: 20,
-    fontWeight: FontWeight.w600,
-    fontFamily: 'Inter',
-    color: Colors.black,
-  );
-  static const TextStyle body = TextStyle(
-    fontSize: 16,
     fontWeight: FontWeight.normal,
-    fontFamily: 'Inter',
-    color: Colors.black,
+    fontFamily: 'Poppins',
+    color: AppColors.black,
   );
-  static const TextStyle caption = TextStyle(
-    fontSize: 12,
+  static const TextStyle regular12 = TextStyle(
+    fontSize: 12.36,
     fontWeight: FontWeight.normal,
-    fontFamily: 'Inter',
-    color: Colors.black54,
+    fontFamily: 'Poppins',
+    color: AppColors.black,
+  );
+  static const TextStyle regular8 = TextStyle(
+    fontSize: 7.64,
+    fontWeight: FontWeight.normal,
+    fontFamily: 'Poppins',
+    color: AppColors.black,
+  );
+
+  // Poppins Bold
+  static const TextStyle bold20 = TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.bold,
+    fontFamily: 'Poppins',
+    color: AppColors.black,
+  );
+  static const TextStyle bold12 = TextStyle(
+    fontSize: 12.36,
+    fontWeight: FontWeight.bold,
+    fontFamily: 'Poppins',
+    color: AppColors.black,
+  );
+  static const TextStyle bold8 = TextStyle(
+    fontSize: 7.64,
+    fontWeight: FontWeight.bold,
+    fontFamily: 'Poppins',
+    color: AppColors.black,
   );
   // ... ďalšie štýly podľa potreby
 } 
