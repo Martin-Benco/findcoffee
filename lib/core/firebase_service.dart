@@ -84,4 +84,41 @@ class FirebaseService {
       }).toList();
     });
   }
+
+  /// Načíta kaviarne, ktoré majú v menu_item zadaný nápoj
+  Future<List<Cafe>> getCafesByMenuItem(String menuItem) async {
+    try {
+      print("Hľadám kaviarne s menu_item: $menuItem");
+      
+      // Hľadáme kaviarne kde menu_item obsahuje zadaný nápoj
+      final QuerySnapshot querySnapshot = await _firestore
+          .collection('kaviarne')
+          .where('menu_item', arrayContains: menuItem)
+          .get();
+      
+      print("Nájdených ${querySnapshot.docs.length} kaviarní s $menuItem");
+
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final polohaData = data['poloha'] as Map<String, dynamic>?;
+
+        final lat = (polohaData?['lat'] ?? 0.0).toDouble();
+        final lon = (polohaData?['lng'] ?? 0.0).toDouble();
+
+        print("Spracovávam '${data['nazov']}': Poloha data: $polohaData, Parsed Lat: $lat, Parsed Lon: $lon");
+        
+        return Cafe(
+          name: data['nazov'] ?? '',
+          foto_url: data['foto_url'] ?? '',
+          rating: (data['rating'] ?? 0.0).toDouble(),
+          isFavorite: data['isFavorite'] ?? false,
+          latitude: lat,
+          longitude: lon,
+        );
+      }).toList();
+    } catch (e) {
+      print('Chyba pri načítaní kaviarní s menu_item $menuItem: $e');
+      return [];
+    }
+  }
 } 

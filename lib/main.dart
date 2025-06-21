@@ -129,15 +129,18 @@ class _HomePageState extends State<HomePage> {
   // Mock dáta pre nápoje a jedlá (zatiaľ)
   final List<Drink> _drinks = const [
     Drink(name: 'Matcha', imageUrl: ''),
-    Drink(name: 'Preso', imageUrl: ''),
-    Drink(name: 'Oppio', imageUrl: ''),
-    Drink(name: 'Latte', imageUrl: ''),
-    Drink(name: 'Cappuccino', imageUrl: ''),
-    Drink(name: 'Espresso', imageUrl: ''),
+    Drink(name: 'Káva', imageUrl: ''),
+    Drink(name: 'Drinky', imageUrl: ''),
+    Drink(name: 'Limonáda', imageUrl: ''),
+    Drink(name: 'Kombucha', imageUrl: ''),
   ];
   
   List<Cafe> _cafes = [];
+  List<Cafe> _filteredCafes = [];
   bool _isLoadingCafes = true;
+  bool _isFiltered = false;
+  String? _selectedDrink;
+  String? _selectedFood;
   
   final List<Food> _foods = const [
     Food(name: 'Panini', imageUrl: ''),
@@ -145,7 +148,6 @@ class _HomePageState extends State<HomePage> {
     Food(name: 'Toasty', imageUrl: ''),
     Food(name: 'Croissant', imageUrl: ''),
     Food(name: 'Bageta', imageUrl: ''),
-    Food(name: 'Cheesecake', imageUrl: ''),
   ];
 
   @override
@@ -224,6 +226,104 @@ class _HomePageState extends State<HomePage> {
         setState(() => _isLoadingCafes = false);
       }
     }
+  }
+
+  /// Spracuje kliknutie na nápoj a načíta filtrované kaviarne
+  Future<void> _onDrinkTap(String drinkName) async {
+    try {
+      setState(() {
+        _isLoadingCafes = true;
+        _isFiltered = true;
+        _selectedDrink = drinkName;
+        _selectedFood = null; // Zrušíme filter jedla
+      });
+
+      print("Kliknutie na nápoj: $drinkName");
+      
+      final filteredCafes = await _firebaseService.getCafesByMenuItem(drinkName);
+      print("Načítaných ${filteredCafes.length} kaviarní s $drinkName");
+
+      if (_currentPosition != null) {
+        print("Spracovávam filtrované kaviarne a počítam vzdialenosti...");
+        for (var cafe in filteredCafes) {
+          final distanceInMeters = Geolocator.distanceBetween(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+            cafe.latitude,
+            cafe.longitude,
+          );
+          cafe.distanceKm = distanceInMeters / 1000;
+          print("- Kaviareň '${cafe.name}': vzdialenosť ${cafe.distanceKm.toStringAsFixed(2)} km");
+        }
+        filteredCafes.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      }
+
+      if (mounted) {
+        setState(() {
+          _filteredCafes = filteredCafes;
+          _isLoadingCafes = false;
+        });
+      }
+    } catch (e) {
+      print('Chyba pri načítaní filtrovaných kaviarní: $e');
+      if (mounted) {
+        setState(() => _isLoadingCafes = false);
+      }
+    }
+  }
+
+  /// Spracuje kliknutie na jedlo a načíta filtrované kaviarne
+  Future<void> _onFoodTap(String foodName) async {
+    try {
+      setState(() {
+        _isLoadingCafes = true;
+        _isFiltered = true;
+        _selectedFood = foodName;
+        _selectedDrink = null; // Zrušíme filter nápoja
+      });
+
+      print("Kliknutie na jedlo: $foodName");
+      
+      final filteredCafes = await _firebaseService.getCafesByMenuItem(foodName);
+      print("Načítaných ${filteredCafes.length} kaviarní s $foodName");
+
+      if (_currentPosition != null) {
+        print("Spracovávam filtrované kaviarne a počítam vzdialenosti...");
+        for (var cafe in filteredCafes) {
+          final distanceInMeters = Geolocator.distanceBetween(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+            cafe.latitude,
+            cafe.longitude,
+          );
+          cafe.distanceKm = distanceInMeters / 1000;
+          print("- Kaviareň '${cafe.name}': vzdialenosť ${cafe.distanceKm.toStringAsFixed(2)} km");
+        }
+        filteredCafes.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+      }
+
+      if (mounted) {
+        setState(() {
+          _filteredCafes = filteredCafes;
+          _isLoadingCafes = false;
+        });
+      }
+    } catch (e) {
+      print('Chyba pri načítaní filtrovaných kaviarní: $e');
+      if (mounted) {
+        setState(() => _isLoadingCafes = false);
+      }
+    }
+  }
+
+  /// Zruší filtrovanie a zobrazí všetky kaviarne
+  void _clearFilter() {
+    setState(() {
+      _isFiltered = false;
+      _selectedDrink = null;
+      _selectedFood = null;
+      _filteredCafes.clear();
+    });
   }
 
   void _onSheetChanged(double extent) {
@@ -310,9 +410,53 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 24),
                     const SectionTitle('Populárne nápoje', isLarge: true),
-                    DrinkCarousel(drinks: _drinks, height: 140, itemSize: 96),
+                    DrinkCarousel(
+                      drinks: _drinks, 
+                      height: 140, 
+                      itemSize: 96,
+                      onDrinkTap: _onDrinkTap,
+                    ),
                     const SizedBox(height: 24),
-                    const SectionTitle('Kaviarne v okolí', isLarge: true),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SectionTitle(
+                            _isFiltered 
+                              ? _selectedDrink != null 
+                                ? 'Kaviarne s $_selectedDrink' 
+                                : 'Kaviarne s $_selectedFood'
+                              : 'Kaviarne v okolí', 
+                            isLarge: true
+                          ),
+                        ),
+                        if (_isFiltered)
+                          GestureDetector(
+                            onTap: _clearFilter,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.grey,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/icons/bieleX.svg',
+                                    width: 16,
+                                    height: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Zrušiť',
+                                    style: AppTextStyles.regular12,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     if (_isLoadingCafes)
                       const Center(
                         child: Padding(
@@ -320,7 +464,17 @@ class _HomePageState extends State<HomePage> {
                           child: CircularProgressIndicator(),
                         ),
                       )
-                    else if (_cafes.isEmpty)
+                    else if (_isFiltered && _filteredCafes.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Text(
+                            'Žiadne kaviarne s týmto nápojom neboli nájdené',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    else if (!_isFiltered && _cafes.isEmpty)
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20.0),
@@ -331,11 +485,20 @@ class _HomePageState extends State<HomePage> {
                         ),
                       )
                     else
-                      CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
+                      CafeCarousel(
+                        cafes: _isFiltered ? _filteredCafes : _cafes, 
+                        itemWidth: 200, 
+                        itemHeight: 140
+                      ),
                     if (_mode == HomeMode.search) ...[
                       const SizedBox(height: 24),
                       const SectionTitle('Niečo pod zub', isLarge: true),
-                      FoodCarousel(foods: _foods, height: 140, itemSize: 96),
+                      FoodCarousel(
+                        foods: _foods, 
+                        height: 140, 
+                        itemSize: 96,
+                        onFoodTap: _onFoodTap,
+                      ),
                       const SizedBox(height: 32),
                     ] else ...[
                       const SizedBox(height: 32),
