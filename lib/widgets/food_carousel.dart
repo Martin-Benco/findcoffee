@@ -12,8 +12,8 @@ class FoodCarousel extends StatelessWidget {
   
   const FoodCarousel({
     required this.foods, 
-    this.height = 140, 
-    this.itemSize = 96, 
+    this.height = 160, 
+    this.itemSize = 130, 
     this.onFoodTap,
     super.key
   });
@@ -26,7 +26,7 @@ class FoodCarousel extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: foods.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 20),
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
         itemBuilder: (context, i) {
           final food = foods[i];
           return GestureDetector(
@@ -65,7 +65,7 @@ class FoodCarousel extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: itemSize,
                   child: Text(

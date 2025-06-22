@@ -18,7 +18,7 @@ class CafeCarousel extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: cafes.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 24),
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
         itemBuilder: (context, i) {
           final cafe = cafes[i];
           return Column(
@@ -51,41 +51,67 @@ class CafeCarousel extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               SizedBox(
                 width: itemWidth,
-                child: Row(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            cafe.name,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            cafe.name.length > 17 ? '${cafe.name.substring(0, 17)}...' : cafe.name,
                             style: AppTextStyles.bold12,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${cafe.distanceKm.toStringAsFixed(1)} km',
-                            style: AppTextStyles.regular8,
-                          ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          '${cafe.distanceKm.toStringAsFixed(1)} km',
+                          style: AppTextStyles.regular12,
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
-                        SvgPicture.asset(
-                          'assets/icons/recenzieHviezdaPlna.svg',
-                          width: 24,
-                          height: 24,
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/recenzieHviezdaPlna.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              cafe.rating.toStringAsFixed(1),
+                              style: AppTextStyles.regular12,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          cafe.rating.toStringAsFixed(1),
-                          style: AppTextStyles.regular12,
+                        const Spacer(),
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/parkinghnede.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            SvgPicture.asset(
+                              'assets/icons/menuhnede.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            SvgPicture.asset(
+                              'assets/icons/wifihnede.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                          ],
                         ),
                       ],
                     ),

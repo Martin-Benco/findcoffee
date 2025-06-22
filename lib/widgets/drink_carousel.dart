@@ -12,8 +12,8 @@ class DrinkCarousel extends StatelessWidget {
   
   const DrinkCarousel({
     required this.drinks, 
-    this.height = 140, 
-    this.itemSize = 96, 
+    this.height = 160, 
+    this.itemSize = 130, 
     this.onDrinkTap,
     super.key
   });
@@ -26,7 +26,7 @@ class DrinkCarousel extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: drinks.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 20),
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
         itemBuilder: (context, i) {
           final drink = drinks[i];
           return GestureDetector(
@@ -65,7 +65,7 @@ class DrinkCarousel extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: itemSize,
                   child: Text(

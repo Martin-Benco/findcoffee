@@ -126,6 +126,7 @@ class _HomePageState extends State<HomePage> {
   final FirebaseService _firebaseService = FirebaseService();
   Position? _currentPosition;
   final TextEditingController _searchController = TextEditingController();
+  final DraggableScrollableController _sheetController = DraggableScrollableController();
   
   // Mock dáta pre nápoje a jedlá (zatiaľ)
   final List<Drink> _drinks = const [
@@ -162,6 +163,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _sheetController.dispose();
     super.dispose();
   }
 
@@ -395,14 +397,31 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _animateSheetToSearch() {
+    // Skontrolujeme, či je controller pripojený k sheetu
+    if (!_sheetController.isAttached) return;
+
+    _sheetController.animateTo(
+      1.0, // maxChildSize
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   void _onSheetChanged(double extent) {
-    // Nastav režim podľa výšky sheetu
-    if (extent < 0.35) {
-      if (_mode != HomeMode.map) setState(() => _mode = HomeMode.map);
-    } else if (extent < 0.85) {
-      if (_mode != HomeMode.searchMap) setState(() => _mode = HomeMode.searchMap);
-    } else {
-      if (_mode != HomeMode.search) setState(() => _mode = HomeMode.search);
+    final newMode = extent < 0.35
+        ? HomeMode.map
+        : extent < 0.85
+            ? HomeMode.searchMap
+            : HomeMode.search;
+
+    if (newMode != _mode) {
+      setState(() {
+        if (_mode == HomeMode.search && newMode != HomeMode.search) {
+          FocusScope.of(context).unfocus();
+        }
+        _mode = newMode;
+      });
     }
   }
 
@@ -413,11 +432,12 @@ class _HomePageState extends State<HomePage> {
         // Mapa je vždy na pozadí
         _MapView(currentPosition: _currentPosition),
         DraggableScrollableSheet(
-          initialChildSize: 0.12, // cca výška search baru
-          minChildSize: 0.12,
+          controller: _sheetController,
+          initialChildSize: 0.15, // cca výška search baru
+          minChildSize: 0.15,
           maxChildSize: 1.0,
           snap: true,
-          snapSizes: const [0.12, 0.75, 1.0],
+          snapSizes: const [0.15, 0.75, 1.0],
           builder: (context, scrollController) {
             return NotificationListener<DraggableScrollableNotification>(
               onNotification: (notification) {
@@ -440,24 +460,33 @@ class _HomePageState extends State<HomePage> {
                   controller: scrollController,
                   children: [
                     const SizedBox(height: 12),
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppColors.grey,
-                          borderRadius: BorderRadius.circular(2),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: _mode == HomeMode.search ? 0.0 : 1.0,
+                      child: Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: AppColors.grey,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Container(
-                        height: 48,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        height: _mode == HomeMode.search ? 44 : 48,
                         decoration: BoxDecoration(
-                          color: AppColors.grey,
+                          color: _mode == HomeMode.search ? AppColors.background : AppColors.grey,
                           borderRadius: BorderRadius.circular(12),
+                          border: _mode == HomeMode.search
+                              ? Border.all(color: AppColors.black, width: 1.0)
+                              : null,
                         ),
                         child: Row(
                           children: [
@@ -471,7 +500,10 @@ class _HomePageState extends State<HomePage> {
                             Expanded(
                               child: TextField(
                                 controller: _searchController,
+                                onTap: _animateSheetToSearch,
+                                textAlignVertical: TextAlignVertical.center,
                                 decoration: const InputDecoration(
+                                  isCollapsed: true,
                                   hintText: 'Vyhľadávanie kaviarní, nápojov...',
                                   border: InputBorder.none,
                                   hintStyle: TextStyle(
@@ -498,25 +530,32 @@ class _HomePageState extends State<HomePage> {
                                 child: Padding(
                                   padding: const EdgeInsets.only(right: 16.0),
                                   child: SvgPicture.asset(
-                                    'assets/icons/bieleX.svg',
+                                    'assets/icons/cierneX.svg',
                                     width: 20,
                                     height: 20,
                                   ),
+                                ),
+                              )
+                            else
+                              Padding(
+                                padding: const EdgeInsets.only(right: 16.0),
+                                child: SvgPicture.asset(
+                                  'assets/icons/filterIcon.svg',
+                                  width: 24,
+                                  height: 24,
                                 ),
                               ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     const SectionTitle('Populárne nápoje', isLarge: true),
                     DrinkCarousel(
                       drinks: _drinks, 
-                      height: 140, 
-                      itemSize: 96,
                       onDrinkTap: _onDrinkTap,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -607,17 +646,15 @@ class _HomePageState extends State<HomePage> {
                         itemHeight: 140
                       ),
                     if (_mode == HomeMode.search) ...[
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       const SectionTitle('Niečo pod zub', isLarge: true),
                       FoodCarousel(
                         foods: _foods, 
-                        height: 140, 
-                        itemSize: 96,
                         onFoodTap: _onFoodTap,
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
                     ] else ...[
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
                     ],
                   ],
                 ),
