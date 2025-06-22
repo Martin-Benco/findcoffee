@@ -48,7 +48,7 @@ class DrinkCarousel extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                         image: drink.imageUrl.isNotEmpty
                             ? DecorationImage(
-                                image: NetworkImage(drink.imageUrl),
+                                image: AssetImage(drink.imageUrl),
                                 fit: BoxFit.cover,
                               )
                             : null,

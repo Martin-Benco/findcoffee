@@ -125,35 +125,44 @@ class _HomePageState extends State<HomePage> {
   HomeMode _mode = HomeMode.map;
   final FirebaseService _firebaseService = FirebaseService();
   Position? _currentPosition;
+  final TextEditingController _searchController = TextEditingController();
   
   // Mock dáta pre nápoje a jedlá (zatiaľ)
   final List<Drink> _drinks = const [
-    Drink(name: 'Matcha', imageUrl: ''),
-    Drink(name: 'Káva', imageUrl: ''),
-    Drink(name: 'Drinky', imageUrl: ''),
-    Drink(name: 'Limonáda', imageUrl: ''),
-    Drink(name: 'Kombucha', imageUrl: ''),
+    Drink(name: 'Matcha', imageUrl: 'assets/images/matcha.jpg'),
+    Drink(name: 'Káva', imageUrl: 'assets/images/kava.jpg'),
+    Drink(name: 'Drinky', imageUrl: 'assets/images/drinky.jpg'),
+    Drink(name: 'Limonáda', imageUrl: 'assets/images/limonady.jpg'),
+    Drink(name: 'Kombucha', imageUrl: 'assets/images/kombucha.jpg'),
   ];
   
   List<Cafe> _cafes = [];
   List<Cafe> _filteredCafes = [];
+  List<Cafe> _searchResults = [];
   bool _isLoadingCafes = true;
   bool _isFiltered = false;
+  bool _isSearching = false;
   String? _selectedDrink;
   String? _selectedFood;
   
   final List<Food> _foods = const [
-    Food(name: 'Panini', imageUrl: ''),
-    Food(name: 'Koláče', imageUrl: ''),
-    Food(name: 'Toasty', imageUrl: ''),
-    Food(name: 'Croissant', imageUrl: ''),
-    Food(name: 'Bageta', imageUrl: ''),
+    Food(name: 'Sandwich', imageUrl: 'assets/images/sandwich.jpg'),
+    Food(name: 'Koláče', imageUrl: 'assets/images/kolace.jpg'),
+    Food(name: 'Cinnamon rolls', imageUrl: 'assets/images/cinnamonRolls.jpg'),
+    Food(name: 'Croissant', imageUrl: 'assets/images/croissant.jpg'),
+    Food(name: 'Pistachio', imageUrl: 'assets/images/pistachio.jpg'),
   ];
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -326,6 +335,66 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// Vyhľadá kaviarne podľa názvu
+  void _searchCafes(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _isSearching = false;
+        _searchResults.clear();
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _isFiltered = false; // Zrušíme filter pri vyhľadávaní
+    });
+
+    final lowercaseQuery = query.toLowerCase();
+    final results = _cafes.where((cafe) {
+      return cafe.name.toLowerCase().contains(lowercaseQuery);
+    }).toList();
+
+    setState(() {
+      _searchResults = results;
+    });
+  }
+
+  /// Zruší vyhľadávanie
+  void _clearSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchResults.clear();
+      _searchController.clear();
+    });
+  }
+
+  /// Skontroluje, či je query nápoj alebo jedlo a aplikuje filter
+  void _handleSearchQuery(String query) {
+    final lowercaseQuery = query.toLowerCase();
+    
+    // Skontrolujeme, či sa query zhoduje s nejakým nápojom
+    final matchingDrink = _drinks.firstWhere(
+      (drink) => drink.name.toLowerCase() == lowercaseQuery,
+      orElse: () => const Drink(name: '', imageUrl: ''),
+    );
+    
+    // Skontrolujeme, či sa query zhoduje s nejakým jedlom
+    final matchingFood = _foods.firstWhere(
+      (food) => food.name.toLowerCase() == lowercaseQuery,
+      orElse: () => const Food(name: '', imageUrl: ''),
+    );
+
+    if (matchingDrink.name.isNotEmpty) {
+      _onDrinkTap(matchingDrink.name);
+    } else if (matchingFood.name.isNotEmpty) {
+      _onFoodTap(matchingFood.name);
+    } else {
+      // Ak sa nejedná o presný match s nápojom/jedlom, vyhľadáme kaviarne
+      _searchCafes(query);
+    }
+  }
+
   void _onSheetChanged(double extent) {
     // Nastav režim podľa výšky sheetu
     if (extent < 0.35) {
@@ -392,6 +461,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         child: Row(
                           children: [
+                            const SizedBox(width: 16),
                             SvgPicture.asset(
                               'assets/icons/searchLupa.svg',
                               width: 24,
@@ -399,11 +469,41 @@ class _HomePageState extends State<HomePage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Text(
-                                'Vyhľadávanie',
+                              child: TextField(
+                                controller: _searchController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Vyhľadávanie kaviarní, nápojov...',
+                                  border: InputBorder.none,
+                                  hintStyle: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
                                 style: AppTextStyles.regular12,
+                                onChanged: (value) {
+                                  if (value.isEmpty) {
+                                    _clearSearch();
+                                  } else {
+                                    _handleSearchQuery(value);
+                                  }
+                                },
+                                onSubmitted: (value) {
+                                  _handleSearchQuery(value);
+                                },
                               ),
                             ),
+                            if (_searchController.text.isNotEmpty)
+                              GestureDetector(
+                                onTap: _clearSearch,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 16.0),
+                                  child: SvgPicture.asset(
+                                    'assets/icons/bieleX.svg',
+                                    width: 20,
+                                    height: 20,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -421,17 +521,19 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         Expanded(
                           child: SectionTitle(
-                            _isFiltered 
-                              ? _selectedDrink != null 
-                                ? 'Kaviarne s $_selectedDrink' 
-                                : 'Kaviarne s $_selectedFood'
-                              : 'Kaviarne v okolí', 
+                            _isSearching 
+                              ? 'Výsledky vyhľadávania'
+                              : _isFiltered 
+                                ? _selectedDrink != null 
+                                  ? 'Kaviarne s $_selectedDrink' 
+                                  : 'Kaviarne s $_selectedFood'
+                                : 'Kaviarne v okolí', 
                             isLarge: true
                           ),
                         ),
-                        if (_isFiltered)
+                        if (_isFiltered || _isSearching)
                           GestureDetector(
-                            onTap: _clearFilter,
+                            onTap: _isSearching ? _clearSearch : _clearFilter,
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
@@ -464,6 +566,16 @@ class _HomePageState extends State<HomePage> {
                           child: CircularProgressIndicator(),
                         ),
                       )
+                    else if (_isSearching && _searchResults.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Text(
+                            'Žiadne kaviarne neboli nájdené',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      )
                     else if (_isFiltered && _filteredCafes.isEmpty)
                       const Center(
                         child: Padding(
@@ -474,7 +586,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                       )
-                    else if (!_isFiltered && _cafes.isEmpty)
+                    else if (!_isFiltered && !_isSearching && _cafes.isEmpty)
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20.0),
@@ -486,7 +598,11 @@ class _HomePageState extends State<HomePage> {
                       )
                     else
                       CafeCarousel(
-                        cafes: _isFiltered ? _filteredCafes : _cafes, 
+                        cafes: _isSearching 
+                          ? _searchResults 
+                          : _isFiltered 
+                            ? _filteredCafes 
+                            : _cafes, 
                         itemWidth: 200, 
                         itemHeight: 140
                       ),

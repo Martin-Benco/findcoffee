@@ -48,7 +48,7 @@ class FoodCarousel extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                         image: food.imageUrl.isNotEmpty
                             ? DecorationImage(
-                                image: NetworkImage(food.imageUrl),
+                                image: AssetImage(food.imageUrl),
                                 fit: BoxFit.cover,
                               )
                             : null,
