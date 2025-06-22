@@ -36,7 +36,7 @@ class DrinkCarousel extends StatelessWidget {
               }
             },
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Stack(
                   children: [
@@ -73,6 +73,7 @@ class DrinkCarousel extends StatelessWidget {
                     style: AppTextStyles.regular12,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
