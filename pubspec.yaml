@@ -40,6 +40,7 @@ dependencies:
   geolocator: ^10.1.0
   firebase_core: ^2.24.2
   cloud_firestore: ^4.13.6
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -65,8 +66,8 @@ flutter:
 
   assets:
     - assets/icons/
-    - assets/icons/cierneMenu.svg
     - assets/images/
+    - assets/images/bg_coffee.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

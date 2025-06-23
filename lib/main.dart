@@ -12,6 +12,9 @@ import 'widgets/cafe_carousel.dart';
 import 'widgets/food_carousel.dart';
 import 'core/models.dart';
 import 'core/firebase_service.dart';
+import 'widgets/login_sheet.dart';
+import 'widgets/register_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +30,184 @@ class CoffitApp extends StatelessWidget {
     return MaterialApp(
       title: 'Coffit',
       theme: AppTheme.lightTheme,
-      home: const MainNavigation(),
+      home: const AuthScreen(),
+    );
+  }
+}
+
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  bool _showLogin = false;
+  bool _showRegister = false;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfLoggedIn();
+  }
+
+  Future<void> _checkIfLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedOut = prefs.getBool('is_logged_out') ?? false;
+    if (isLoggedOut) return;
+    final email = prefs.getString('email');
+    final password = prefs.getString('password');
+    if (email != null && password != null && email.isNotEmpty && password.isNotEmpty) {
+      setState(() => _isLoggedIn = true);
+    }
+  }
+
+  void _openLogin() => setState(() { _showLogin = true; _showRegister = false; });
+  void _openRegister() => setState(() { _showRegister = true; _showLogin = false; });
+  void _closeSheet() => setState(() { _showLogin = false; _showRegister = false; });
+  void _onLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_out', false);
+    setState(() { _isLoggedIn = true; _showLogin = false; _showRegister = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoggedIn) return const MainNavigation();
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: Stack(
+        children: [
+          // Pozadie cez celý screen
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/bg_coffee.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+          // Obsah
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 80),
+                    const Text(
+                      'Vitajte',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 28,
+                        color: Color(0xFF603013),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        'Zadajte svoje osobné údaje pre používanie tejto aplikácie.',
+                        style: TextStyle(
+                          color: Color(0xFF603013),
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: 260,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF603013),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: _openRegister,
+                        child: const Text('Registrovať sa', style: TextStyle(fontSize: 16)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: 260,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF603013),
+                          side: const BorderSide(color: Color(0xFF603013), width: 2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: _openLogin,
+                        child: const Text('Prihlásiť sa', style: TextStyle(fontSize: 16)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Sheet pre login/register
+          if (_showLogin || _showRegister)
+            GestureDetector(
+              onTap: _closeSheet,
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            ),
+          if (_showLogin)
+            _BottomSheetContainer(
+              child: LoginSheet(
+                onRegisterTap: _openRegister,
+                onLoginSuccess: _onLoggedIn,
+              ),
+            ),
+          if (_showRegister)
+            _BottomSheetContainer(
+              child: RegisterSheet(
+                onLoginTap: _openLogin,
+                onRegisterSuccess: _onLoggedIn,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomSheetContainer extends StatelessWidget {
+  final Widget child;
+  const _BottomSheetContainer({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      top: MediaQuery.of(context).size.height * 0.18,
+      child: Material(
+        elevation: 16,
+        color: Colors.transparent,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -366,12 +546,17 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// Zruší vyhľadávanie
-  void _clearSearch() {
+  /// Zruší vyhľadávanie a filtrovanie
+  void _resetSearchAndFilter() {
     setState(() {
-      _isSearching = false;
-      _searchResults.clear();
       _searchController.clear();
+      _isSearching = false;
+      _isFiltered = false;
+      _searchResults.clear();
+      _filteredCafes.clear();
+      _selectedDrink = null;
+      _selectedFood = null;
+      FocusScope.of(context).unfocus();
     });
   }
 
@@ -457,7 +642,7 @@ class _HomePageState extends State<HomePage> {
             ),
             child: Center(
               child: SvgPicture.asset(
-                'assets/icons/cierneMenu.svg',
+                'assets/icons/ciernemenu.svg',
                 width: 24,
                 height: 24,
               ),
@@ -548,7 +733,7 @@ class _HomePageState extends State<HomePage> {
                                 style: AppTextStyles.regular12,
                                 onChanged: (value) {
                                   if (value.isEmpty) {
-                                    _clearSearch();
+                                    _resetSearchAndFilter();
                                   } else {
                                     _handleSearchQuery(value);
                                   }
@@ -560,7 +745,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             if (_searchController.text.isNotEmpty)
                               GestureDetector(
-                                onTap: _clearSearch,
+                                onTap: _resetSearchAndFilter,
                                 child: Padding(
                                   padding: const EdgeInsets.only(right: 16.0),
                                   child: SvgPicture.asset(
@@ -584,111 +769,94 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const SectionTitle('Populárne nápoje', isLarge: true),
-                    DrinkCarousel(
-                      drinks: _drinks, 
-                      onDrinkTap: _onDrinkTap,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SectionTitle(
-                            _isSearching 
-                              ? 'Výsledky vyhľadávania'
-                              : _isFiltered 
-                                ? _selectedDrink != null 
-                                  ? 'Kaviarne s $_selectedDrink' 
-                                  : 'Kaviarne s $_selectedFood'
-                                : 'Kaviarne v okolí', 
-                            isLarge: true
-                          ),
-                        ),
-                        if (_isFiltered || _isSearching)
-                          GestureDetector(
-                            onTap: _isSearching ? _clearSearch : _clearFilter,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppColors.grey,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SvgPicture.asset(
-                                    'assets/icons/bieleX.svg',
-                                    width: 16,
-                                    height: 16,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Zrušiť',
-                                    style: AppTextStyles.regular12,
-                                  ),
-                                ],
+                    
+                    if (_isSearching || _isFiltered) ...[
+                      // --- Nový layout pre výsledky vyhľadávania ---
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: SectionTitle(
+                                _isSearching 
+                                  ? 'Výsledky vyhľadávania'
+                                  : _selectedDrink != null 
+                                    ? 'Kaviarne s $_selectedDrink' 
+                                    : 'Kaviarne s $_selectedFood'!, 
+                                isLarge: true
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    if (_isLoadingCafes)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: CircularProgressIndicator(),
+                          ],
                         ),
-                      )
-                    else if (_isSearching && _searchResults.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: Text(
-                            'Žiadne kaviarne neboli nájdené',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      )
-                    else if (_isFiltered && _filteredCafes.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: Text(
-                            'Žiadne kaviarne s týmto nápojom neboli nájdené',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      )
-                    else if (!_isFiltered && !_isSearching && _cafes.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(20.0),
-                          child: Text(
-                            'Žiadne kaviarne neboli nájdené',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                      )
-                    else
-                      CafeCarousel(
-                        cafes: _isSearching 
-                          ? _searchResults 
-                          : _isFiltered 
-                            ? _filteredCafes 
-                            : _cafes, 
-                        itemWidth: 200, 
-                        itemHeight: 140
                       ),
-                    if (_mode == HomeMode.search || _mode == HomeMode.searchMap) ...[
-                      const SizedBox(height: 16),
-                      const SectionTitle('Niečo pod zub', isLarge: true),
-                      FoodCarousel(
-                        foods: _foods, 
-                        onFoodTap: _onFoodTap,
-                      ),
+                      if (_isLoadingCafes)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if ((_isSearching && _searchResults.isEmpty) || (_isFiltered && _filteredCafes.isEmpty))
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Text(
+                              _isSearching ? 'Žiadne kaviarne neboli nájdené' : 'Žiadne kaviarne s týmto produktom neboli nájdené',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        )
+                      else
+                        ...(_isSearching ? _searchResults : _filteredCafes)
+                            .map((cafe) => _CafeListItem(cafe: cafe))
+                            .toList(),
                       const SizedBox(height: 24),
+
                     ] else ...[
-                      const SizedBox(height: 24),
+                      // --- Pôvodný layout s karuselmi ---
+                      const SectionTitle('Populárne nápoje', isLarge: true),
+                      DrinkCarousel(
+                        drinks: _drinks,
+                        onDrinkTap: _onDrinkTap,
+                      ),
+                      const SizedBox(height: 16),
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: SectionTitle('Kaviarne v okolí', isLarge: true),
+                          ),
+                        ],
+                      ),
+                      if (_isLoadingCafes)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (_cafes.isEmpty)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: Text(
+                              'Žiadne kaviarne neboli nájdené',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        )
+                      else
+                        CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
+                      if (_mode == HomeMode.search || _mode == HomeMode.searchMap) ...[
+                        const SizedBox(height: 16),
+                        const SectionTitle('Niečo pod zub', isLarge: true),
+                        FoodCarousel(
+                          foods: _foods,
+                          onFoodTap: _onFoodTap,
+                        ),
+                        const SizedBox(height: 24),
+                      ] else ...[
+                        const SizedBox(height: 24),
+                      ],
                     ],
                   ],
                 ),
@@ -697,6 +865,110 @@ class _HomePageState extends State<HomePage> {
           },
         ),
       ],
+    );
+  }
+}
+
+class _CafeListItem extends StatelessWidget {
+  final Cafe cafe;
+
+  const _CafeListItem({required this.cafe});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12.0),
+            child: Image.network(
+              cafe.foto_url,
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 80,
+                height: 80,
+                color: AppColors.grey,
+                child: const Icon(Icons.image_not_supported, color: Colors.white70),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: SizedBox(
+              height: 80,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          cafe.name,
+                          style: AppTextStyles.bold12,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${cafe.distanceKm.toStringAsFixed(1)} km',
+                        style: AppTextStyles.regular12,
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          SvgPicture.asset(
+                            'assets/icons/recenzieHviezdaPlna.svg',
+                            width: 16,
+                            height: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            cafe.rating.toStringAsFixed(1),
+                            style: AppTextStyles.regular12,
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          SvgPicture.asset(
+                            'assets/icons/parkinghnede.svg',
+                            width: 16,
+                            height: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          SvgPicture.asset(
+                            'assets/icons/menuhnede.svg',
+                            width: 16,
+                            height: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          SvgPicture.asset(
+                            'assets/icons/wifihnede.svg',
+                            width: 16,
+                            height: 16,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -772,23 +1044,136 @@ class _MapViewState extends State<_MapView> {
 }
 
 // ------------------- Favorites Page -------------------
-class FavoritesPage extends StatelessWidget {
+class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
+  @override
+  State<FavoritesPage> createState() => _FavoritesPageState();
+}
+
+class _FavoritesPageState extends State<FavoritesPage> {
+  List<FavoriteItem> _favorites = [];
+  String? _userEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    final email = await getCurrentUserEmail();
+    if (email == null) return;
+    _userEmail = email;
+    final prefs = await SharedPreferences.getInstance();
+    final key = favoritesKeyForUser(email);
+    final jsonStr = prefs.getString(key);
+    if (jsonStr != null) {
+      setState(() {
+        _favorites = favoritesFromJson(jsonStr);
+      });
+    } else {
+      setState(() {
+        _favorites = [];
+      });
+    }
+  }
+
+  Future<void> _removeFavorite(FavoriteItem item) async {
+    if (_userEmail == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final key = favoritesKeyForUser(_userEmail!);
+    setState(() {
+      _favorites.removeWhere((f) => f.type == item.type && f.id == item.id);
+    });
+    await prefs.setString(key, favoritesToJson(_favorites));
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Center(child: Text('Obľúbené', style: TextStyle(fontSize: 18))),
+      child: _favorites.isEmpty
+          ? const Center(child: Text('Žiadne obľúbené položky'))
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _favorites.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, i) {
+                final fav = _favorites[i];
+                return ListTile(
+                  leading: fav.imageUrl != null && fav.imageUrl!.isNotEmpty
+                      ? (fav.type == FavoriteType.cafe
+                          ? Image.network(fav.imageUrl!, width: 48, height: 48, fit: BoxFit.cover)
+                          : Image.asset(fav.imageUrl!, width: 48, height: 48, fit: BoxFit.cover))
+                      : const Icon(Icons.favorite, color: Colors.brown),
+                  title: Text(fav.name),
+                  subtitle: Text(_typeText(fav.type)),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _removeFavorite(fav),
+                  ),
+                );
+              },
+            ),
     );
+  }
+
+  String _typeText(FavoriteType type) {
+    switch (type) {
+      case FavoriteType.cafe:
+        return 'Kaviareň';
+      case FavoriteType.drink:
+        return 'Nápoj';
+      case FavoriteType.food:
+        return 'Jedlo';
+    }
   }
 }
 
 // ------------------- Profile Page -------------------
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
+
+  Future<String?> _getEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('email');
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_out', true);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => AuthScreen(key: UniqueKey())),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Center(child: Text('Účet', style: TextStyle(fontSize: 18))),
+      child: Center(
+        child: FutureBuilder<String?>(
+          future: _getEmail(),
+          builder: (context, snapshot) {
+            final email = snapshot.data;
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  email != null ? 'Prihlásený ako:\n$email' : 'Nie ste prihlásený',
+                  style: const TextStyle(fontSize: 18),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                if (email != null)
+                  ElevatedButton(
+                    onPressed: () => _logout(context),
+                    child: const Text('Odhlásiť sa'),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }
