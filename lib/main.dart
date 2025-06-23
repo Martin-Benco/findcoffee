@@ -242,6 +242,8 @@ class _HomePageState extends State<HomePage> {
   /// Spracuje kliknutie na nápoj a načíta filtrované kaviarne
   Future<void> _onDrinkTap(String drinkName) async {
     try {
+      _animateSheetToSearch();
+      _searchController.text = drinkName;
       setState(() {
         _isLoadingCafes = true;
         _isFiltered = true;
@@ -286,6 +288,8 @@ class _HomePageState extends State<HomePage> {
   /// Spracuje kliknutie na jedlo a načíta filtrované kaviarne
   Future<void> _onFoodTap(String foodName) async {
     try {
+      _animateSheetToSearch();
+      _searchController.text = foodName;
       setState(() {
         _isLoadingCafes = true;
         _isFiltered = true;
