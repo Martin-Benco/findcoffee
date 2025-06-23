@@ -431,9 +431,39 @@ class _HomePageState extends State<HomePage> {
       children: [
         // Mapa je vždy na pozadí
         _MapView(currentPosition: _currentPosition),
+
+        // Menu button
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 16,
+          left: 16,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  spreadRadius: 1,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/cierneMenu.svg',
+                width: 24,
+                height: 24,
+              ),
+            ),
+          ),
+        ),
+
         DraggableScrollableSheet(
           controller: _sheetController,
-          initialChildSize: 0.15, // cca výška search baru
+          initialChildSize: 0.75, // cca výška search baru
           minChildSize: 0.15,
           maxChildSize: 1.0,
           snap: true,
@@ -645,7 +675,7 @@ class _HomePageState extends State<HomePage> {
                         itemWidth: 200, 
                         itemHeight: 140
                       ),
-                    if (_mode == HomeMode.search) ...[
+                    if (_mode == HomeMode.search || _mode == HomeMode.searchMap) ...[
                       const SizedBox(height: 16),
                       const SectionTitle('Niečo pod zub', isLarge: true),
                       FoodCarousel(
