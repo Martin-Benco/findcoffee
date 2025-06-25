@@ -69,6 +69,12 @@ class _FoodCarouselState extends State<FoodCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    if (_userEmail == null) {
+      return SizedBox(
+        height: widget.height,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
     return SizedBox(
       height: widget.height,
       child: ListView.separated(
@@ -106,16 +112,18 @@ class _FoodCarouselState extends State<FoodCarousel> {
                     Positioned(
                       top: 8,
                       right: 8,
-                      child: GestureDetector(
-                        onTap: () => _toggleFavorite(food),
-                        child: SvgPicture.asset(
-                          _favoriteFoods.contains(food.name)
-                            ? 'assets/icons/bieleHeartPlne.svg'
-                            : 'assets/icons/bieleHeartEmpty.svg',
-                          width: 24,
-                          height: 24,
-                        ),
-                      ),
+                      child: _userEmail == null
+                        ? SvgPicture.asset('assets/icons/bieleHeartEmpty.svg', width: 24, height: 24)
+                        : GestureDetector(
+                            onTap: () => _toggleFavorite(food),
+                            child: SvgPicture.asset(
+                              _favoriteFoods.contains(food.name)
+                                ? 'assets/icons/bieleHeartPlne.svg'
+                                : 'assets/icons/bieleHeartEmpty.svg',
+                              width: 24,
+                              height: 24,
+                            ),
+                          ),
                     ),
                   ],
                 ),

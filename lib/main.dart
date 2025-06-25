@@ -15,10 +15,26 @@ import 'core/firebase_service.dart';
 import 'widgets/login_sheet.dart';
 import 'widgets/register_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'widgets/cafe_detail_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "TVOJ_API_KEY",
+        authDomain: "TVOJ_AUTH_DOMAIN",
+        projectId: "TVOJ_PROJECT_ID",
+        storageBucket: "TVOJ_STORAGE_BUCKET",
+        messagingSenderId: "TVOJ_MESSAGING_SENDER_ID",
+        appId: "TVOJ_APP_ID",
+        measurementId: "TVOJ_MEASUREMENT_ID",
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
   runApp(const CoffitApp());
 }
 
@@ -876,98 +892,107 @@ class _CafeListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12.0),
-            child: Image.network(
-              cafe.foto_url,
-              width: 80,
-              height: 80,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => CafeDetailPage(cafe: cafe),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12.0),
+              child: Image.network(
+                cafe.foto_url,
                 width: 80,
                 height: 80,
-                color: AppColors.grey,
-                child: const Icon(Icons.image_not_supported, color: Colors.white70),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 80,
+                  height: 80,
+                  color: AppColors.grey,
+                  child: const Icon(Icons.image_not_supported, color: Colors.white70),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: SizedBox(
-              height: 80,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          cafe.name,
-                          style: AppTextStyles.bold12,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 16),
+            Expanded(
+              child: SizedBox(
+                height: 80,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            cafe.name,
+                            style: AppTextStyles.bold12,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${cafe.distanceKm.toStringAsFixed(1)} km',
-                        style: AppTextStyles.regular12,
-                      ),
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/recenzieHviezdaPlna.svg',
-                            width: 16,
-                            height: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            cafe.rating.toStringAsFixed(1),
-                            style: AppTextStyles.regular12,
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          SvgPicture.asset(
-                            'assets/icons/parkinghnede.svg',
-                            width: 16,
-                            height: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          SvgPicture.asset(
-                            'assets/icons/menuhnede.svg',
-                            width: 16,
-                            height: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          SvgPicture.asset(
-                            'assets/icons/wifihnede.svg',
-                            width: 16,
-                            height: 16,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        Text(
+                          '${cafe.distanceKm.toStringAsFixed(1)} km',
+                          style: AppTextStyles.regular12,
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/recenzieHviezdaPlna.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              cafe.rating.toStringAsFixed(1),
+                              style: AppTextStyles.regular12,
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/parkinghnede.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            SvgPicture.asset(
+                              'assets/icons/menuhnede.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            SvgPicture.asset(
+                              'assets/icons/wifihnede.svg',
+                              width: 16,
+                              height: 16,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1078,54 +1103,142 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
-  Future<void> _removeFavorite(FavoriteItem item) async {
-    if (_userEmail == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(_userEmail!);
-    setState(() {
-      _favorites.removeWhere((f) => f.type == item.type && f.id == item.id);
-    });
-    await prefs.setString(key, favoritesToJson(_favorites));
+  @override
+  Widget build(BuildContext context) {
+    if (_userEmail == null) {
+      return const SafeArea(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Horný rad s nadpisom a ikonou
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Obľúbené', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
+                IconButton(
+                  icon: const Icon(Icons.info_outline, size: 26),
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _favorites.isEmpty
+                ? const Center(child: Text('Žiadne obľúbené položky'))
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: _favorites.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) {
+                      final fav = _favorites[i];
+                      // Mock data pre ukážku (adresu, dátum, hodnotenie, recenziu)
+                      final address = fav.name == 'Saint Coffee'
+                          ? '6 Apr – Prešov, Luthanskeho 18'
+                          : fav.name == 'Pauza Coffee and Cake'
+                              ? '8 Apr – Prešov, Popradska 2'
+                              : '2 Apr – Prešov, Jogurskeho 15';
+                      final date = fav.name == 'Saint Coffee'
+                          ? '21 May, 2025'
+                          : fav.name == 'Pauza Coffee and Cake'
+                              ? '5 April, 2025'
+                              : '1 Jun, 2025';
+                      final review = fav.name == 'Saint Coffee'
+                          ? 'Bolo to skvelé!!!'
+                          : fav.name == 'Pauza Coffee and Cake'
+                              ? 'Super preso.'
+                              : 'Bola som tu v...';
+                      final rating = fav.name == 'Saint Coffee'
+                          ? 4.7
+                          : fav.name == 'Pauza Coffee and Cake'
+                              ? 4.9
+                              : 4.5;
+                      return _FavoriteCafeItem(
+                        imageUrl: fav.imageUrl,
+                        name: fav.name,
+                        address: address,
+                        date: date,
+                        review: review,
+                        rating: rating,
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FavoriteCafeItem extends StatelessWidget {
+  final String? imageUrl;
+  final String name;
+  final String address;
+  final String date;
+  final String review;
+  final double rating;
+  const _FavoriteCafeItem({this.imageUrl, required this.name, required this.address, required this.date, required this.review, required this.rating});
+
+  bool _isNetworkImage(String? url) {
+    return url != null && url.startsWith('http');
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: _favorites.isEmpty
-          ? const Center(child: Text('Žiadne obľúbené položky'))
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: _favorites.length,
-              separatorBuilder: (_, __) => const Divider(),
-              itemBuilder: (context, i) {
-                final fav = _favorites[i];
-                return ListTile(
-                  leading: fav.imageUrl != null && fav.imageUrl!.isNotEmpty
-                      ? (fav.type == FavoriteType.cafe
-                          ? Image.network(fav.imageUrl!, width: 48, height: 48, fit: BoxFit.cover)
-                          : Image.asset(fav.imageUrl!, width: 48, height: 48, fit: BoxFit.cover))
-                      : const Icon(Icons.favorite, color: Colors.brown),
-                  title: Text(fav.name),
-                  subtitle: Text(_typeText(fav.type)),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () => _removeFavorite(fav),
-                  ),
-                );
-              },
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Ľavý stĺpec: obrázok, pod ním dátum a poznámka
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: (imageUrl != null && imageUrl!.isNotEmpty && _isNetworkImage(imageUrl))
+                  ? Image.network(imageUrl!, width: 54, height: 54, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)))
+                  : Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)),
             ),
+            const SizedBox(height: 6),
+            Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            SizedBox(
+              width: 54,
+              child: Text(review, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        const SizedBox(width: 12),
+        // Pravý stĺpec: názov a adresa
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(address, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.star_border, color: Color(0xFFD2691E), size: 22),
+                const SizedBox(width: 2),
+                Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFD2691E))),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
-  }
-
-  String _typeText(FavoriteType type) {
-    switch (type) {
-      case FavoriteType.cafe:
-        return 'Kaviareň';
-      case FavoriteType.drink:
-        return 'Nápoj';
-      case FavoriteType.food:
-        return 'Jedlo';
-    }
   }
 }
 
@@ -1133,9 +1246,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
+  Future<String?> _getName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('name') ?? 'Používateľ';
+  }
+
   Future<String?> _getEmail() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('email');
+    return prefs.getString('email') ?? '';
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -1150,29 +1268,125 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Center(
-        child: FutureBuilder<String?>(
-          future: _getEmail(),
-          builder: (context, snapshot) {
-            final email = snapshot.data;
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  email != null ? 'Prihlásený ako:\n$email' : 'Nie ste prihlásený',
-                  style: const TextStyle(fontSize: 18),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                if (email != null)
-                  ElevatedButton(
-                    onPressed: () => _logout(context),
-                    child: const Text('Odhlásiť sa'),
+      child: FutureBuilder<List<String?>> (
+        future: Future.wait([_getName(), _getEmail()]),
+        builder: (context, snapshot) {
+          final meno = snapshot.data?[0] ?? 'Používateľ';
+          final email = snapshot.data?[1] ?? '';
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  Text('Ahoj, $meno', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
+                  const SizedBox(height: 4),
+                  Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
+                  const SizedBox(height: 24),
+                  const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 16),
+                  _ProfileRow(
+                    icon: Container(width: 28, height: 28, color: Colors.black12),
+                    text: meno,
+                    onEdit: () {},
                   ),
-              ],
-            );
-          },
+                  const SizedBox(height: 8),
+                  _ProfileRow(
+                    icon: Container(width: 28, height: 28, color: Colors.black12),
+                    text: email,
+                    onEdit: () {},
+                    showEdit: true,
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const SizedBox(height: 18),
+                  const Text('Personalizácia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('Farba', style: TextStyle(fontSize: 16)),
+                      const Spacer(),
+                      Container(
+                        width: 48,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text('Bezpečnosť', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Heslo'),
+                  const Divider(),
+                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Súkromie'),
+                  const SizedBox(height: 24),
+                  const Text('Iné', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Zistiť viac'),
+                  const Divider(),
+                  GestureDetector(
+                    onTap: () => _logout(context),
+                    child: _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Log out'),
+                  ),
+                  const Divider(),
+                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Delete account'),
+                  const SizedBox(height: 32),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProfileRow extends StatelessWidget {
+  final Widget icon;
+  final String text;
+  final VoidCallback? onEdit;
+  final bool showEdit;
+  const _ProfileRow({required this.icon, required this.text, this.onEdit, this.showEdit = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        icon,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text, style: const TextStyle(fontSize: 16)),
         ),
+        if (showEdit)
+          GestureDetector(
+            onTap: onEdit,
+            child: const Text('Upraviť', style: TextStyle(color: Colors.red, fontSize: 15, fontWeight: FontWeight.w500)),
+          ),
+      ],
+    );
+  }
+}
+
+class _SimpleRow extends StatelessWidget {
+  final Widget icon;
+  final String text;
+  const _SimpleRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          icon,
+          const SizedBox(width: 12),
+          Text(text, style: const TextStyle(fontSize: 16)),
+        ],
       ),
     );
   }
