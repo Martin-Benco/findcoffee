@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/auth_service.dart';
 
 class LoginSheet extends StatefulWidget {
   final VoidCallback onRegisterTap;
@@ -14,23 +14,45 @@ class LoginSheet extends StatefulWidget {
 class _LoginSheetState extends State<LoginSheet> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _obscure = true;
+  bool _isLoading = false;
   String? _error;
 
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    final prefs = await SharedPreferences.getInstance();
-    final savedEmail = prefs.getString('email');
-    final savedPassword = prefs.getString('password');
-    if (email == savedEmail && password == savedPassword) {
-      setState(() => _error = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prihlásenie úspešné!')),
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Vyplňte všetky polia');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await _authService.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-      if (widget.onLoginSuccess != null) widget.onLoginSuccess!();
-    } else {
-      setState(() => _error = 'Nesprávny email alebo heslo');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Prihlásenie úspešné!')),
+        );
+        if (widget.onLoginSuccess != null) widget.onLoginSuccess!();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -54,6 +76,7 @@ class _LoginSheetState extends State<LoginSheet> {
               children: [
                 TextField(
                   controller: _emailController,
+                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     labelText: 'Email:',
                     hintText: 'example@gmail.com',
@@ -63,13 +86,14 @@ class _LoginSheetState extends State<LoginSheet> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
+                  enabled: !_isLoading,
                   obscureText: _obscure,
                   decoration: InputDecoration(
                     labelText: 'Heslo:',
                     hintText: 'kupujemKaVu!',
                     suffixIcon: IconButton(
                       icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscure = !_obscure),
+                      onPressed: _isLoading ? null : () => setState(() => _obscure = !_obscure),
                     ),
                   ),
                 ),
@@ -81,7 +105,7 @@ class _LoginSheetState extends State<LoginSheet> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: _isLoading ? null : () {},
                     child: const Text('Zabudnuté heslo?'),
                   ),
                 ),
@@ -93,8 +117,17 @@ class _LoginSheetState extends State<LoginSheet> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: _login,
-                  child: const Text('Prihlásiť sa', style: TextStyle(fontSize: 16)),
+                  onPressed: _isLoading ? null : _login,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Prihlásiť sa', style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -122,7 +155,7 @@ class _LoginSheetState extends State<LoginSheet> {
                   children: [
                     const Text('Ešte nemáte účet?'),
                     TextButton(
-                      onPressed: widget.onRegisterTap,
+                      onPressed: _isLoading ? null : widget.onRegisterTap,
                       child: const Text('Registrujte sa'),
                     ),
                   ],

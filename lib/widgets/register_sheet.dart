@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/auth_service.dart';
 
 class RegisterSheet extends StatefulWidget {
   final VoidCallback onLoginTap;
@@ -15,32 +15,60 @@ class _RegisterSheetState extends State<RegisterSheet> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _obscure = true;
   bool _agree = false;
+  bool _isLoading = false;
   String? _error;
 
   Future<void> _register() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       setState(() => _error = 'Vyplňte všetky polia');
       return;
     }
+    
+    if (password.length < 6) {
+      setState(() => _error = 'Heslo musí mať aspoň 6 znakov');
+      return;
+    }
+    
     if (!_agree) {
       setState(() => _error = 'Musíte súhlasiť so spracovaním údajov');
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('name', name);
-    await prefs.setString('email', email);
-    await prefs.setString('password', password);
-    setState(() => _error = null);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Registrácia úspešná!')), 
-    );
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (widget.onRegisterSuccess != null) widget.onRegisterSuccess!();
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await _authService.registerWithEmailAndPassword(
+        email: email,
+        password: password,
+        name: name,
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registrácia úspešná!')), 
+        );
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (widget.onRegisterSuccess != null) widget.onRegisterSuccess!();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -63,6 +91,7 @@ class _RegisterSheetState extends State<RegisterSheet> {
               children: [
                 TextField(
                   controller: _nameController,
+                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     labelText: 'Celé meno:',
                     hintText: 'Meno a Priezvisko',
@@ -71,6 +100,7 @@ class _RegisterSheetState extends State<RegisterSheet> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _emailController,
+                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     labelText: 'Email',
                     hintText: 'example@gmail.com',
@@ -80,13 +110,14 @@ class _RegisterSheetState extends State<RegisterSheet> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
+                  enabled: !_isLoading,
                   obscureText: _obscure,
                   decoration: InputDecoration(
                     labelText: 'Heslo',
                     hintText: 'kupujemKaVu!',
                     suffixIcon: IconButton(
                       icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscure = !_obscure),
+                      onPressed: _isLoading ? null : () => setState(() => _obscure = !_obscure),
                     ),
                   ),
                 ),
@@ -95,7 +126,7 @@ class _RegisterSheetState extends State<RegisterSheet> {
                   children: [
                     Checkbox(
                       value: _agree,
-                      onChanged: (v) => setState(() => _agree = v ?? false),
+                      onChanged: _isLoading ? null : (v) => setState(() => _agree = v ?? false),
                     ),
                     const Expanded(
                       child: Text.rich(
@@ -125,8 +156,17 @@ class _RegisterSheetState extends State<RegisterSheet> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: _register,
-                  child: const Text('Registrovať sa', style: TextStyle(fontSize: 16)),
+                  onPressed: _isLoading ? null : _register,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Registrovať sa', style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -154,7 +194,7 @@ class _RegisterSheetState extends State<RegisterSheet> {
                   children: [
                     const Text('Už máte účet?'),
                     TextButton(
-                      onPressed: widget.onLoginTap,
+                      onPressed: _isLoading ? null : widget.onLoginTap,
                       child: const Text('Prihláste sa'),
                     ),
                   ],

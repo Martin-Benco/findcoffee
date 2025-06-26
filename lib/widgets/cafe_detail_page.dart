@@ -3,7 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../core/models.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/firebase_service.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class CafeDetailPage extends StatefulWidget {
@@ -17,7 +17,7 @@ class CafeDetailPage extends StatefulWidget {
 
 class _CafeDetailPageState extends State<CafeDetailPage> {
   bool _isFavorite = false;
-  String? _userEmail;
+  final FirebaseService _firebaseService = FirebaseService();
 
   @override
   void initState() {
@@ -26,45 +26,41 @@ class _CafeDetailPageState extends State<CafeDetailPage> {
   }
 
   Future<void> _loadFavoriteStatus() async {
-    final email = await getCurrentUserEmail();
-    if (email == null) return;
-    _userEmail = email;
-    
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(email);
-    final jsonStr = prefs.getString(key);
-    if (jsonStr != null) {
-      final favs = favoritesFromJson(jsonStr);
+    try {
+      final isFavorite = await _firebaseService.isFavorite(widget.cafe.id);
       setState(() {
-        _isFavorite = favs.any((f) => f.type == FavoriteType.cafe && f.id == widget.cafe.name);
+        _isFavorite = isFavorite;
       });
+    } catch (e) {
+      print('Chyba pri načítaní stavu obľúbených: $e');
     }
   }
 
   Future<void> _toggleFavorite() async {
-    if (_userEmail == null) return;
-    
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(_userEmail!);
-    final jsonStr = prefs.getString(key);
-    List<FavoriteItem> favs = jsonStr != null ? favoritesFromJson(jsonStr) : [];
-    
-    setState(() {
+    try {
       if (_isFavorite) {
-        favs.removeWhere((f) => f.type == FavoriteType.cafe && f.id == widget.cafe.name);
-        _isFavorite = false;
+        await _firebaseService.removeFromFavorites(widget.cafe.id);
+        setState(() {
+          _isFavorite = false;
+        });
       } else {
-        favs.add(FavoriteItem(
+        final favoriteItem = FavoriteItem(
           type: FavoriteType.cafe,
-          id: widget.cafe.name,
+          id: widget.cafe.id,
           name: widget.cafe.name,
           imageUrl: widget.cafe.foto_url,
-        ));
-        _isFavorite = true;
+        );
+        await _firebaseService.addToFavorites(favoriteItem);
+        setState(() {
+          _isFavorite = true;
+        });
       }
-    });
-    
-    await prefs.setString(key, favoritesToJson(favs));
+    } catch (e) {
+      print('Chyba pri prepínaní obľúbených: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba: $e')),
+      );
+    }
   }
 
   @override
@@ -226,21 +222,61 @@ class _CafeDetailPageState extends State<CafeDetailPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Káva sekcia
-                    const Text('Káva', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 10),
-                    _MenuItemRow(name: 'Espresso', price: '1.20 €', desc: 'Nevies co preso debile?'),
-                    _MenuItemRow(name: 'Latte', price: '1.20 €', desc: 'Nevies co preso debile?', badge: 'Populárne'),
-                    _MenuItemRow(name: 'Lungo', price: '1.20 €', desc: 'Nevies co preso debile?'),
-                    _MenuItemRow(name: 'Doppio', price: '1.20 €', desc: 'Nevies co preso debile?'),
-                    const SizedBox(height: 18),
-                    // Limonády sekcia
-                    const Text('Limonády', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 10),
-                    _MenuItemRow(name: 'Baza s maslom', price: '8.30 €', desc: 'Nedavaj si'),
-                    _MenuItemRow(name: 'Baza s maslom', price: '8.30 €', desc: 'Nedavaj si'),
-                    _MenuItemRow(name: 'Baza s maslom', price: '8.30 €', desc: 'Nedavaj si'),
-                    _MenuItemRow(name: 'Baza s maslom', price: '8.30 €', desc: 'Nedavaj si'),
+                    FutureBuilder<List<MenuItem>>(
+                      future: _firebaseService.getMenuItems(widget.cafe.id),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        
+                        if (snapshot.hasError) {
+                          return const Center(
+                            child: Text('Chyba pri načítaní menu', style: TextStyle(color: Colors.grey)),
+                          );
+                        }
+                        
+                        final menuItems = snapshot.data ?? [];
+                        
+                        if (menuItems.isEmpty) {
+                          return const Center(
+                            child: Text('Žiadne položky v menu', style: TextStyle(color: Colors.grey)),
+                          );
+                        }
+                        
+                        // Zoskupíme menu položky podľa kategórie
+                        final Map<String, List<MenuItem>> groupedItems = {};
+                        for (final item in menuItems) {
+                          final category = item.kategoria ?? 'Ostatné';
+                          if (!groupedItems.containsKey(category)) {
+                            groupedItems[category] = [];
+                          }
+                          groupedItems[category]!.add(item);
+                        }
+                        
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: groupedItems.entries.map((entry) {
+                            final category = entry.key;
+                            final items = entry.value;
+                            
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                const SizedBox(height: 10),
+                                ...items.map((item) => _MenuItemRow(
+                                  name: item.nazov,
+                                  price: item.cena,
+                                  desc: item.popis ?? '',
+                                  badge: item.badge,
+                                )),
+                                const SizedBox(height: 18),
+                              ],
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -325,13 +361,29 @@ class _CafeDetailPageState extends State<CafeDetailPage> {
                   children: [
                     const Text('Otváracie hodiny', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
                     const SizedBox(height: 12),
-                    _OpeningHoursRow(day: 'Po', hours: '9:00 – 16.15'),
-                    _OpeningHoursRow(day: 'Ut', hours: '9:00 – 16.15'),
-                    _OpeningHoursRow(day: 'St', hours: '9:00 – 16.15'),
-                    _OpeningHoursRow(day: 'Št', hours: '9:00 – 16.15'),
-                    _OpeningHoursRow(day: 'Pi', hours: '9:00 – 16.15'),
-                    _OpeningHoursRow(day: 'So', hours: '9:00 – 16.15'),
-                    _OpeningHoursRow(day: 'Ne', hours: '9:00 – 16.15'),
+                    FutureBuilder<List<OpeningHours>>(
+                      future: _firebaseService.getOpeningHours(widget.cafe.id),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        
+                        if (snapshot.hasError) {
+                          return const Center(
+                            child: Text('Chyba pri načítaní otváracích hodín', style: TextStyle(color: Colors.grey)),
+                          );
+                        }
+                        
+                        final openingHours = snapshot.data ?? [];
+                        
+                        return Column(
+                          children: openingHours.map((hours) => _OpeningHoursRow(
+                            day: hours.den,
+                            hours: hours.hodiny,
+                          )).toList(),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),

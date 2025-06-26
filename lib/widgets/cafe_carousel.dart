@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_colors.dart';
+import '../core/firebase_service.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'cafe_detail_page.dart';
 
 class CafeCarousel extends StatefulWidget {
@@ -18,7 +18,7 @@ class CafeCarousel extends StatefulWidget {
 
 class _CafeCarouselState extends State<CafeCarousel> {
   Set<String> _favoriteCafes = {};
-  String? _userEmail;
+  final FirebaseService _firebaseService = FirebaseService();
 
   @override
   void initState() {
@@ -27,48 +27,49 @@ class _CafeCarouselState extends State<CafeCarousel> {
   }
 
   Future<void> _loadFavorites() async {
-    final email = await getCurrentUserEmail();
-    if (email == null) return;
-    _userEmail = email;
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(email);
-    final jsonStr = prefs.getString(key);
-    if (jsonStr != null) {
-      final favs = favoritesFromJson(jsonStr);
+    try {
+      final favorites = await _firebaseService.getFavorites();
       setState(() {
-        _favoriteCafes = favs.where((f) => f.type == FavoriteType.cafe).map((f) => f.id).toSet();
+        _favoriteCafes = favorites
+            .where((f) => f.type == FavoriteType.cafe)
+            .map((f) => f.id)
+            .toSet();
       });
+    } catch (e) {
+      print('Chyba pri načítaní obľúbených kaviarní: $e');
     }
   }
 
   Future<void> _toggleFavorite(Cafe cafe) async {
-    if (_userEmail == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(_userEmail!);
-    final jsonStr = prefs.getString(key);
-    List<FavoriteItem> favs = jsonStr != null ? favoritesFromJson(jsonStr) : [];
-    final idx = favs.indexWhere((f) => f.type == FavoriteType.cafe && f.id == cafe.name);
-    setState(() {
-      if (_favoriteCafes.contains(cafe.name)) {
-        _favoriteCafes.remove(cafe.name);
-        if (idx != -1) favs.removeAt(idx);
+    try {
+      final favoriteItem = FavoriteItem(
+        type: FavoriteType.cafe,
+        id: cafe.id,
+        name: cafe.name,
+        imageUrl: cafe.foto_url,
+      );
+
+      if (_favoriteCafes.contains(cafe.id)) {
+        await _firebaseService.removeFromFavorites(cafe.id);
+        setState(() {
+          _favoriteCafes.remove(cafe.id);
+        });
       } else {
-        _favoriteCafes.add(cafe.name);
-        favs.add(FavoriteItem(type: FavoriteType.cafe, id: cafe.name, name: cafe.name, imageUrl: cafe.foto_url));
+        await _firebaseService.addToFavorites(favoriteItem);
+        setState(() {
+          _favoriteCafes.add(cafe.id);
+        });
       }
-    });
-    await prefs.setString(key, favoritesToJson(favs));
+    } catch (e) {
+      print('Chyba pri prepínaní obľúbených: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_userEmail == null) {
-      // Loading alebo fallback pre web
-      return SizedBox(
-        height: widget.itemHeight + 80,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
     return SizedBox(
       height: widget.itemHeight + 80,
       child: ListView.separated(
@@ -108,18 +109,16 @@ class _CafeCarouselState extends State<CafeCarousel> {
                     Positioned(
                       top: 12,
                       right: 12,
-                      child: _userEmail == null
-                        ? SvgPicture.asset('assets/icons/bieleHeartEmpty.svg', width: 32, height: 32)
-                        : GestureDetector(
-                            onTap: () => _toggleFavorite(cafe),
-                            child: SvgPicture.asset(
-                              _favoriteCafes.contains(cafe.name)
-                                ? 'assets/icons/bieleHeartPlne.svg'
-                                : 'assets/icons/bieleHeartEmpty.svg',
-                              width: 32,
-                              height: 32,
-                            ),
-                          ),
+                      child: GestureDetector(
+                        onTap: () => _toggleFavorite(cafe),
+                        child: SvgPicture.asset(
+                          _favoriteCafes.contains(cafe.id)
+                            ? 'assets/icons/bieleHeartPlne.svg'
+                            : 'assets/icons/bieleHeartEmpty.svg',
+                          width: 32,
+                          height: 32,
+                        ),
+                      ),
                     ),
                   ],
                 ),

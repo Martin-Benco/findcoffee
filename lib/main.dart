@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -12,9 +13,9 @@ import 'widgets/cafe_carousel.dart';
 import 'widgets/food_carousel.dart';
 import 'core/models.dart';
 import 'core/firebase_service.dart';
+import 'core/auth_service.dart';
 import 'widgets/login_sheet.dart';
 import 'widgets/register_sheet.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'widgets/cafe_detail_page.dart';
 
@@ -46,7 +47,35 @@ class CoffitApp extends StatelessWidget {
     return MaterialApp(
       title: 'Coffit',
       theme: AppTheme.lightTheme,
-      home: const AuthScreen(),
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        if (snapshot.hasData && snapshot.data != null) {
+          // Používateľ je prihlásený
+          return const MainNavigation();
+        } else {
+          // Používateľ nie je prihlásený
+          return const AuthScreen();
+        }
+      },
     );
   }
 }
@@ -61,37 +90,13 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   bool _showLogin = false;
   bool _showRegister = false;
-  bool _isLoggedIn = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkIfLoggedIn();
-  }
-
-  Future<void> _checkIfLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedOut = prefs.getBool('is_logged_out') ?? false;
-    if (isLoggedOut) return;
-    final email = prefs.getString('email');
-    final password = prefs.getString('password');
-    if (email != null && password != null && email.isNotEmpty && password.isNotEmpty) {
-      setState(() => _isLoggedIn = true);
-    }
-  }
 
   void _openLogin() => setState(() { _showLogin = true; _showRegister = false; });
   void _openRegister() => setState(() { _showRegister = true; _showLogin = false; });
   void _closeSheet() => setState(() { _showLogin = false; _showRegister = false; });
-  void _onLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_logged_out', false);
-    setState(() { _isLoggedIn = true; _showLogin = false; _showRegister = false; });
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoggedIn) return const MainNavigation();
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Stack(
@@ -177,14 +182,14 @@ class _AuthScreenState extends State<AuthScreen> {
             _BottomSheetContainer(
               child: LoginSheet(
                 onRegisterTap: _openRegister,
-                onLoginSuccess: _onLoggedIn,
+                onLoginSuccess: _closeSheet,
               ),
             ),
           if (_showRegister)
             _BottomSheetContainer(
               child: RegisterSheet(
                 onLoginTap: _openLogin,
-                onRegisterSuccess: _onLoggedIn,
+                onRegisterSuccess: _closeSheet,
               ),
             ),
         ],
@@ -1099,40 +1104,10 @@ class FavoritesPage extends StatefulWidget {
 }
 
 class _FavoritesPageState extends State<FavoritesPage> {
-  List<FavoriteItem> _favorites = [];
-  String? _userEmail;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFavorites();
-  }
-
-  Future<void> _loadFavorites() async {
-    final email = await getCurrentUserEmail();
-    if (email == null) return;
-    _userEmail = email;
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(email);
-    final jsonStr = prefs.getString(key);
-    if (jsonStr != null) {
-      setState(() {
-        _favorites = favoritesFromJson(jsonStr);
-      });
-    } else {
-      setState(() {
-        _favorites = [];
-      });
-    }
-  }
+  final FirebaseService _firebaseService = FirebaseService();
 
   @override
   Widget build(BuildContext context) {
-    if (_userEmail == null) {
-      return const SafeArea(
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1152,45 +1127,70 @@ class _FavoritesPageState extends State<FavoritesPage> {
             ),
           ),
           Expanded(
-            child: _favorites.isEmpty
-                ? const Center(child: Text('Žiadne obľúbené položky'))
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: _favorites.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, i) {
-                      final fav = _favorites[i];
-                      // Mock data pre ukážku (adresu, dátum, hodnotenie, recenziu)
-                      final address = fav.name == 'Saint Coffee'
-                          ? '6 Apr – Prešov, Luthanskeho 18'
-                          : fav.name == 'Pauza Coffee and Cake'
-                              ? '8 Apr – Prešov, Popradska 2'
-                              : '2 Apr – Prešov, Jogurskeho 15';
-                      final date = fav.name == 'Saint Coffee'
-                          ? '21 May, 2025'
-                          : fav.name == 'Pauza Coffee and Cake'
-                              ? '5 April, 2025'
-                              : '1 Jun, 2025';
-                      final review = fav.name == 'Saint Coffee'
-                          ? 'Bolo to skvelé!!!'
-                          : fav.name == 'Pauza Coffee and Cake'
-                              ? 'Super preso.'
-                              : 'Bola som tu v...';
-                      final rating = fav.name == 'Saint Coffee'
-                          ? 4.7
-                          : fav.name == 'Pauza Coffee and Cake'
-                              ? 4.9
-                              : 4.5;
-                      return _FavoriteCafeItem(
-                        imageUrl: fav.imageUrl,
-                        name: fav.name,
-                        address: address,
-                        date: date,
-                        review: review,
-                        rating: rating,
-                      );
-                    },
-                  ),
+            child: StreamBuilder<List<FavoriteItem>>(
+              stream: _firebaseService.getFavoritesStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Chyba: ${snapshot.error}'),
+                  );
+                }
+                
+                final favorites = snapshot.data ?? [];
+                
+                if (favorites.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Žiadne obľúbené položky',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                }
+                
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: favorites.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final fav = favorites[i];
+                    // Mock data pre ukážku (adresu, dátum, hodnotenie, recenziu)
+                    final address = fav.name == 'Saint Coffee'
+                        ? '6 Apr – Prešov, Luthanskeho 18'
+                        : fav.name == 'Pauza Coffee and Cake'
+                            ? '8 Apr – Prešov, Popradska 2'
+                            : '2 Apr – Prešov, Jogurskeho 15';
+                    final date = fav.name == 'Saint Coffee'
+                        ? '21 May, 2025'
+                        : fav.name == 'Pauza Coffee and Cake'
+                            ? '5 April, 2025'
+                            : '1 Jun, 2025';
+                    final review = fav.name == 'Saint Coffee'
+                        ? 'Bolo to skvelé!!!'
+                        : fav.name == 'Pauza Coffee and Cake'
+                            ? 'Super preso.'
+                            : 'Bola som tu v...';
+                    final rating = fav.name == 'Saint Coffee'
+                        ? 4.7
+                        : fav.name == 'Pauza Coffee and Cake'
+                            ? 4.9
+                            : 4.5;
+                    return _FavoriteCafeItem(
+                      imageUrl: fav.imageUrl,
+                      name: fav.name,
+                      address: address,
+                      date: date,
+                      review: review,
+                      rating: rating,
+                      cafeId: fav.id, // id je Firestore ID kaviarne
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -1205,7 +1205,8 @@ class _FavoriteCafeItem extends StatelessWidget {
   final String date;
   final String review;
   final double rating;
-  const _FavoriteCafeItem({this.imageUrl, required this.name, required this.address, required this.date, required this.review, required this.rating});
+  final String? cafeId; // Firestore ID kaviarne
+  const _FavoriteCafeItem({this.imageUrl, required this.name, required this.address, required this.date, required this.review, required this.rating, this.cafeId});
 
   bool _isNetworkImage(String? url) {
     return url != null && url.startsWith('http');
@@ -1213,54 +1214,80 @@ class _FavoriteCafeItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Ľavý stĺpec: obrázok, pod ním dátum a poznámka
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: (imageUrl != null && imageUrl!.isNotEmpty && _isNetworkImage(imageUrl))
-                  ? Image.network(imageUrl!, width: 54, height: 54, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)))
-                  : Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)),
-            ),
-            const SizedBox(height: 6),
-            Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            SizedBox(
-              width: 54,
-              child: Text(review, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-        const SizedBox(width: 12),
-        // Pravý stĺpec: názov a adresa
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(address, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () async {
+            if (cafeId != null) {
+              final firebaseService = FirebaseService();
+              final loadedCafe = await firebaseService.getCafeById(cafeId!);
+              if (loadedCafe != null) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => CafeDetailPage(cafe: loadedCafe),
+                  ),
+                );
+              }
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.star_border, color: Color(0xFFD2691E), size: 22),
-                const SizedBox(width: 2),
-                Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFD2691E))),
+                // Ľavý stĺpec: obrázok, pod ním dátum a poznámka
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: (imageUrl != null && imageUrl!.isNotEmpty && _isNetworkImage(imageUrl))
+                          ? Image.network(imageUrl!, width: 54, height: 54, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)))
+                          : Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    SizedBox(
+                      width: 54,
+                      child: Text(review, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                // Pravý stĺpec: názov a adresa
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Text(address, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.star_border, color: Color(0xFFD2691E), size: 22),
+                        const SizedBox(width: 2),
+                        Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFD2691E))),
+                      ],
+                    ),
+                  ],
+                ),
               ],
             ),
-          ],
+          ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1269,102 +1296,91 @@ class _FavoriteCafeItem extends StatelessWidget {
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
-  Future<String?> _getName() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('name') ?? 'Používateľ';
-  }
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final email = user?.email ?? '';
+    final displayName = user?.displayName ?? 'Používateľ';
 
-  Future<String?> _getEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('email') ?? '';
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              Text('Ahoj, $displayName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
+              const SizedBox(height: 4),
+              Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
+              const SizedBox(height: 24),
+              const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 16),
+              _ProfileRow(
+                icon: Container(width: 28, height: 28, color: Colors.black12),
+                text: displayName,
+                onEdit: () {},
+              ),
+              const SizedBox(height: 8),
+              _ProfileRow(
+                icon: Container(width: 28, height: 28, color: Colors.black12),
+                text: email,
+                onEdit: () {},
+                showEdit: true,
+              ),
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 18),
+              const Text('Personalizácia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('Farba', style: TextStyle(fontSize: 16)),
+                  const Spacer(),
+                  Container(
+                    width: 48,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text('Bezpečnosť', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 12),
+              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Heslo'),
+              const Divider(),
+              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Súkromie'),
+              const SizedBox(height: 24),
+              const Text('Iné', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 12),
+              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Zistiť viac'),
+              const Divider(),
+              GestureDetector(
+                onTap: () => _logout(context),
+                child: _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Log out'),
+              ),
+              const Divider(),
+              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Delete account'),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_logged_out', true);
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => AuthScreen(key: UniqueKey())),
-      (route) => false,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: FutureBuilder<List<String?>> (
-        future: Future.wait([_getName(), _getEmail()]),
-        builder: (context, snapshot) {
-          final meno = snapshot.data?[0] ?? 'Používateľ';
-          final email = snapshot.data?[1] ?? '';
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  Text('Ahoj, $meno', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
-                  const SizedBox(height: 4),
-                  Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
-                  const SizedBox(height: 24),
-                  const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 16),
-                  _ProfileRow(
-                    icon: Container(width: 28, height: 28, color: Colors.black12),
-                    text: meno,
-                    onEdit: () {},
-                  ),
-                  const SizedBox(height: 8),
-                  _ProfileRow(
-                    icon: Container(width: 28, height: 28, color: Colors.black12),
-                    text: email,
-                    onEdit: () {},
-                    showEdit: true,
-                  ),
-                  const SizedBox(height: 8),
-                  const Divider(),
-                  const SizedBox(height: 18),
-                  const Text('Personalizácia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Text('Farba', style: TextStyle(fontSize: 16)),
-                      const Spacer(),
-                      Container(
-                        width: 48,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.black12,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Bezpečnosť', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 12),
-                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Heslo'),
-                  const Divider(),
-                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Súkromie'),
-                  const SizedBox(height: 24),
-                  const Text('Iné', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 12),
-                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Zistiť viac'),
-                  const Divider(),
-                  GestureDetector(
-                    onTap: () => _logout(context),
-                    child: _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Log out'),
-                  ),
-                  const Divider(),
-                  _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Delete account'),
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
+    try {
+      await FirebaseAuth.instance.signOut();
+      // Navigácia sa automaticky spracuje cez AuthWrapper
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba pri odhlásení: $e')),
+      );
+    }
   }
 }
 

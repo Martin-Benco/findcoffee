@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_colors.dart';
+import '../core/firebase_service.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class FoodCarousel extends StatefulWidget {
   final List<Food> foods;
@@ -25,7 +25,7 @@ class FoodCarousel extends StatefulWidget {
 
 class _FoodCarouselState extends State<FoodCarousel> {
   Set<String> _favoriteFoods = {};
-  String? _userEmail;
+  final FirebaseService _firebaseService = FirebaseService();
 
   @override
   void initState() {
@@ -34,47 +34,49 @@ class _FoodCarouselState extends State<FoodCarousel> {
   }
 
   Future<void> _loadFavorites() async {
-    final email = await getCurrentUserEmail();
-    if (email == null) return;
-    _userEmail = email;
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(email);
-    final jsonStr = prefs.getString(key);
-    if (jsonStr != null) {
-      final favs = favoritesFromJson(jsonStr);
+    try {
+      final favorites = await _firebaseService.getFavorites();
       setState(() {
-        _favoriteFoods = favs.where((f) => f.type == FavoriteType.food).map((f) => f.id).toSet();
+        _favoriteFoods = favorites
+            .where((f) => f.type == FavoriteType.food)
+            .map((f) => f.id)
+            .toSet();
       });
+    } catch (e) {
+      print('Chyba pri načítaní obľúbených jedál: $e');
     }
   }
 
   Future<void> _toggleFavorite(Food food) async {
-    if (_userEmail == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final key = favoritesKeyForUser(_userEmail!);
-    final jsonStr = prefs.getString(key);
-    List<FavoriteItem> favs = jsonStr != null ? favoritesFromJson(jsonStr) : [];
-    final idx = favs.indexWhere((f) => f.type == FavoriteType.food && f.id == food.name);
-    setState(() {
+    try {
+      final favoriteItem = FavoriteItem(
+        type: FavoriteType.food,
+        id: food.name,
+        name: food.name,
+        imageUrl: food.imageUrl,
+      );
+
       if (_favoriteFoods.contains(food.name)) {
-        _favoriteFoods.remove(food.name);
-        if (idx != -1) favs.removeAt(idx);
+        await _firebaseService.removeFromFavorites(food.name);
+        setState(() {
+          _favoriteFoods.remove(food.name);
+        });
       } else {
-        _favoriteFoods.add(food.name);
-        favs.add(FavoriteItem(type: FavoriteType.food, id: food.name, name: food.name, imageUrl: food.imageUrl));
+        await _firebaseService.addToFavorites(favoriteItem);
+        setState(() {
+          _favoriteFoods.add(food.name);
+        });
       }
-    });
-    await prefs.setString(key, favoritesToJson(favs));
+    } catch (e) {
+      print('Chyba pri prepínaní obľúbených: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_userEmail == null) {
-      return SizedBox(
-        height: widget.height,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
     return SizedBox(
       height: widget.height,
       child: ListView.separated(
@@ -112,18 +114,16 @@ class _FoodCarouselState extends State<FoodCarousel> {
                     Positioned(
                       top: 8,
                       right: 8,
-                      child: _userEmail == null
-                        ? SvgPicture.asset('assets/icons/bieleHeartEmpty.svg', width: 24, height: 24)
-                        : GestureDetector(
-                            onTap: () => _toggleFavorite(food),
-                            child: SvgPicture.asset(
-                              _favoriteFoods.contains(food.name)
-                                ? 'assets/icons/bieleHeartPlne.svg'
-                                : 'assets/icons/bieleHeartEmpty.svg',
-                              width: 24,
-                              height: 24,
-                            ),
-                          ),
+                      child: GestureDetector(
+                        onTap: () => _toggleFavorite(food),
+                        child: SvgPicture.asset(
+                          _favoriteFoods.contains(food.name)
+                            ? 'assets/icons/bieleHeartPlne.svg'
+                            : 'assets/icons/bieleHeartEmpty.svg',
+                          width: 24,
+                          height: 24,
+                        ),
+                      ),
                     ),
                   ],
                 ),
