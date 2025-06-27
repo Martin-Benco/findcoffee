@@ -18,6 +18,7 @@ import 'widgets/login_sheet.dart';
 import 'widgets/register_sheet.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'widgets/cafe_detail_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1227,7 +1228,7 @@ class _FavoriteCafeItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1308,79 +1309,98 @@ class _FavoriteCafeItem extends StatelessWidget {
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
+  Future<Map<String, dynamic>?> _getUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    return doc.data();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final email = user?.email ?? '';
-    final displayName = user?.displayName ?? 'Používateľ';
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _getUserData(),
+      builder: (context, snapshot) {
+        final user = FirebaseAuth.instance.currentUser;
+        final email = user?.email ?? '';
+        final name = snapshot.data != null && snapshot.data!['name'] != null ? snapshot.data!['name'] as String : 'Používateľ';
+        final firstName = name.split(' ').isNotEmpty ? name.split(' ')[0] : name;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Text('Ahoj, $displayName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
-              const SizedBox(height: 4),
-              Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
-              const SizedBox(height: 24),
-              const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 16),
-              _ProfileRow(
-                icon: Container(width: 28, height: 28, color: Colors.black12),
-                text: displayName,
-                onEdit: () {},
-              ),
-              const SizedBox(height: 8),
-              _ProfileRow(
-                icon: Container(width: 28, height: 28, color: Colors.black12),
-                text: email,
-                onEdit: () {},
-                showEdit: true,
-              ),
-              const SizedBox(height: 8),
-              const Divider(),
-              const SizedBox(height: 18),
-              const Text('Personalizácia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 12),
-              Row(
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Farba', style: TextStyle(fontSize: 16)),
-                  const Spacer(),
-                  Container(
-                    width: 48,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 12),
+                  Text('Ahoj, $firstName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
+                  const SizedBox(height: 12),
+                  const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  _ProfileRow(
+                    icon: SvgPicture.asset('assets/icons/userEmpty.svg', width: 28, height: 28),
+                    text: name,
+                    onEdit: () {},
+                  ),
+                  const Divider(height: 1),
+                  _ProfileRow(
+                    icon: SvgPicture.asset('assets/icons/mail.svg', width: 28, height: 28),
+                    text: email,
+                    onEdit: () {},
+                    showEdit: true,
+                  ),
+                  const SizedBox(height: 12),
+                  // Premium banner
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/images/Premium.png',
+                      width: double.infinity,
+                      fit: BoxFit.cover,
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  const Text('Personalizácia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('Farba', style: TextStyle(fontSize: 16)),
+                      const Spacer(),
+                      Container(
+                        width: 48,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Bezpečnosť', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  _SimpleRow(icon: SvgPicture.asset('assets/icons/Lock.svg', width: 28, height: 28), text: 'Heslo'),
+                  const Divider(height: 1),
+                  _SimpleRow(icon: SvgPicture.asset('assets/icons/eyehide.svg', width: 28, height: 28), text: 'Súkromie'),
+                  const SizedBox(height: 12),
+                  const Text('Iné', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  _SimpleRow(icon: SvgPicture.asset('assets/icons/infoIcon.svg', width: 28, height: 28), text: 'Zistiť viac'),
+                  const Divider(height: 1),
+                  GestureDetector(
+                    onTap: () => _logout(context),
+                    child: _SimpleRow(icon: SvgPicture.asset('assets/icons/Log_Out.svg', width: 28, height: 28), text: 'Log out'),
+                  ),
+                  const Divider(height: 1),
+                  _SimpleRow(icon: SvgPicture.asset('assets/icons/userdelete.svg', width: 28, height: 28), text: 'Delete account'),
+                  const SizedBox(height: 24),
                 ],
               ),
-              const SizedBox(height: 24),
-              const Text('Bezpečnosť', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 12),
-              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Heslo'),
-              const Divider(),
-              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Súkromie'),
-              const SizedBox(height: 24),
-              const Text('Iné', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 12),
-              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Zistiť viac'),
-              const Divider(),
-              GestureDetector(
-                onTap: () => _logout(context),
-                child: _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Log out'),
-              ),
-              const Divider(),
-              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Delete account'),
-              const SizedBox(height: 32),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1405,20 +1425,23 @@ class _ProfileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        icon,
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(text, style: const TextStyle(fontSize: 16)),
-        ),
-        if (showEdit)
-          GestureDetector(
-            onTap: onEdit,
-            child: const Text('Upraviť', style: TextStyle(color: Colors.red, fontSize: 15, fontWeight: FontWeight.w500)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          icon,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: const TextStyle(fontSize: 16)),
           ),
-      ],
+          if (showEdit)
+            GestureDetector(
+              onTap: onEdit,
+              child: const Text('Upraviť', style: TextStyle(color: Colors.red, fontSize: 15, fontWeight: FontWeight.w500)),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1431,7 +1454,7 @@ class _SimpleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           icon,
