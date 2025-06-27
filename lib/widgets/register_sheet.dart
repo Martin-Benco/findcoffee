@@ -12,21 +12,23 @@ class RegisterSheet extends StatefulWidget {
 }
 
 class _RegisterSheetState extends State<RegisterSheet> {
-  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _obscure = true;
   bool _agree = false;
   bool _isLoading = false;
+  bool _showNameInput = false;
   String? _error;
+  String? _userId;
+  String? _userEmail;
 
   Future<void> _register() async {
-    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     
-    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+    if (email.isEmpty || password.isEmpty) {
       setState(() => _error = 'Vyplňte všetky polia');
       return;
     }
@@ -47,9 +49,44 @@ class _RegisterSheetState extends State<RegisterSheet> {
     });
 
     try {
-      await _authService.registerWithEmailAndPassword(
+      final userCredential = await _authService.registerWithEmailAndPassword(
         email: email,
         password: password,
+      );
+      
+      if (mounted && userCredential.user != null) {
+        setState(() {
+          _showNameInput = true;
+          _userId = userCredential.user!.uid;
+          _userEmail = email;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _saveName() async {
+    final name = _nameController.text.trim();
+    
+    if (name.isEmpty) {
+      setState(() => _error = 'Zadajte svoje meno');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await _authService.createUserDocument(
+        userId: _userId!,
+        email: _userEmail!,
         name: name,
       );
       
@@ -57,8 +94,11 @@ class _RegisterSheetState extends State<RegisterSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registrácia úspešná!')), 
         );
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (widget.onRegisterSuccess != null) widget.onRegisterSuccess!();
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        if (widget.onRegisterSuccess != null) {
+          widget.onRegisterSuccess!();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -78,131 +118,374 @@ class _RegisterSheetState extends State<RegisterSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 32),
-          const Text(
-            'Začnime',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
+          Text(
+            _showNameInput ? 'Ako sa voláte?' : 'Začnime',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _nameController,
-                  enabled: !_isLoading,
-                  decoration: const InputDecoration(
-                    labelText: 'Celé meno:',
-                    hintText: 'Meno a Priezvisko',
+          if (!_showNameInput) ...[
+            // Registračný formulár
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _emailController,
+                    enabled: !_isLoading,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      hintText: 'example@gmail.com',
+                    ),
+                    keyboardType: TextInputType.emailAddress,
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _emailController,
-                  enabled: !_isLoading,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    hintText: 'example@gmail.com',
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  enabled: !_isLoading,
-                  obscureText: _obscure,
-                  decoration: InputDecoration(
-                    labelText: 'Heslo',
-                    hintText: 'kupujemKaVu!',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                      onPressed: _isLoading ? null : () => setState(() => _obscure = !_obscure),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _passwordController,
+                    enabled: !_isLoading,
+                    obscureText: _obscure,
+                    decoration: InputDecoration(
+                      labelText: 'Heslo',
+                      hintText: 'kupujemKaVu!',
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                        onPressed: _isLoading ? null : () => setState(() => _obscure = !_obscure),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _agree,
-                      onChanged: _isLoading ? null : (v) => setState(() => _agree = v ?? false),
-                    ),
-                    const Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          text: 'Súhlasím so spracovaním ',
-                          children: [
-                            TextSpan(
-                              text: 'osobných údajov',
-                              style: TextStyle(decoration: TextDecoration.underline),
-                            ),
-                          ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _agree,
+                        onChanged: _isLoading ? null : (v) => setState(() => _agree = v ?? false),
+                      ),
+                      const Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            text: 'Súhlasím so spracovaním ',
+                            children: [
+                              TextSpan(
+                                text: 'osobných údajov',
+                                style: TextStyle(decoration: TextDecoration.underline),
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
                         ),
-                        maxLines: 2,
+                      ),
+                    ],
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                  ],
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF603013),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: _isLoading ? null : _register,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('Registrovať sa', style: TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text('Registrovať sa pomocou', style: TextStyle(color: Color(0xFF603013))),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SvgPicture.asset('assets/icons/google.svg', width: 32, height: 32),
+                      const SizedBox(width: 24),
+                      SvgPicture.asset('assets/icons/apple.svg', width: 32, height: 32),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Už máte účet?'),
+                      TextButton(
+                        onPressed: _isLoading ? null : widget.onLoginTap,
+                        child: const Text('Prihláste sa'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Formulár pre zadanie mena
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Zadajte svoje celé meno pre dokončenie registrácie',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: _nameController,
+                    enabled: !_isLoading,
+                    decoration: const InputDecoration(
+                      labelText: 'Celé meno',
+                      hintText: 'Meno a Priezvisko',
+                      prefixIcon: Icon(Icons.person, color: Color(0xFF603013)),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _saveName(),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF603013),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF603013),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: _isLoading ? null : _saveName,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('Dokončiť registráciu', style: TextStyle(fontSize: 16)),
                   ),
-                  onPressed: _isLoading ? null : _register,
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text('Registrovať sa', style: TextStyle(fontSize: 16)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// Nový widget pre zadanie mena
+class NameInputScreen extends StatefulWidget {
+  final String userId;
+  final String email;
+  final VoidCallback onComplete;
+
+  const NameInputScreen({
+    super.key,
+    required this.userId,
+    required this.email,
+    required this.onComplete,
+  });
+
+  @override
+  State<NameInputScreen> createState() => _NameInputScreenState();
+}
+
+class _NameInputScreenState extends State<NameInputScreen> {
+  final TextEditingController _nameController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
+  String? _error;
+
+  Future<void> _saveName() async {
+    final name = _nameController.text.trim();
+    
+    print('=== ULOŽENIE MENA ===');
+    print('User ID: ${widget.userId}');
+    print('Meno: "$name"');
+    
+    if (name.isEmpty) {
+      setState(() => _error = 'Zadajte svoje meno');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // Vytvoríme dokument s emailom, menom a createdAt
+      await _authService.createUserDocument(
+        userId: widget.userId,
+        email: widget.email,
+        name: name,
+      );
+      print('Meno úspešne uložené: "$name"');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registrácia úspešná!')), 
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Voláme callback, ktorý spustí navigáciu do aplikácie
+        widget.onComplete();
+      }
+    } catch (e) {
+      print('=== CHYBA PRI UKLADANÍ MENA ===');
+      print('Chyba: $e');
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 60),
+              // Ikona alebo logo
+              Center(
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF603013).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_add,
+                    size: 40,
+                    color: Color(0xFF603013),
+                  ),
                 ),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'Ako sa voláte?',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 28,
+                  color: Color(0xFF603013),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Zadajte svoje celé meno pre dokončenie registrácie a vstup do aplikácie',
+                style: TextStyle(
+                  color: Colors.grey, 
+                  fontSize: 16,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              TextField(
+                controller: _nameController,
+                enabled: !_isLoading,
+                decoration: const InputDecoration(
+                  labelText: 'Celé meno',
+                  hintText: 'Meno a Priezvisko',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(color: Color(0xFF603013), width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.person, color: Color(0xFF603013)),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _saveName(),
+              ),
+              if (_error != null) ...[
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('Registrovať sa pomocou', style: TextStyle(color: Color(0xFF603013))),
-                    ),
-                    const Expanded(child: Divider()),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset('assets/icons/google.svg', width: 32, height: 32),
-                    const SizedBox(width: 24),
-                    SvgPicture.asset('assets/icons/apple.svg', width: 32, height: 32),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Už máte účet?'),
-                    TextButton(
-                      onPressed: _isLoading ? null : widget.onLoginTap,
-                      child: const Text('Prihláste sa'),
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ],
-            ),
+              const Spacer(),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF603013),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 2,
+                ),
+                onPressed: _isLoading ? null : _saveName,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Dokončiť registráciu',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

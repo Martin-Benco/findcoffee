@@ -18,6 +18,7 @@ import 'widgets/login_sheet.dart';
 import 'widgets/register_sheet.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'widgets/cafe_detail_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -246,6 +247,9 @@ class _MainNavigationState extends State<MainNavigation> {
   Position? _currentPosition;
   List<Cafe> _cafes = [];
   bool _isLoadingCafes = true;
+  
+  // Cache pre pages
+  final List<Widget> _pages = [];
 
   @override
   void initState() {
@@ -327,8 +331,6 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     }
   }
-
-  final List<Widget> _pages = [];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -1305,14 +1307,178 @@ class _FavoriteCafeItem extends StatelessWidget {
 }
 
 // ------------------- Profile Page -------------------
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final AuthService _authService = AuthService();
+  String _userName = 'Používateľ';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      print('=== NAČÍTAVANIE ÚDAJOV POUŽÍVATEĽA ===');
+      final user = FirebaseAuth.instance.currentUser;
+      print('Aktuálny používateľ: ${user?.uid}');
+      
+      if (user != null) {
+        print('Načítavam meno pre používateľa: ${user.uid}');
+        final name = await _authService.getUserName(user.uid);
+        print('Načítané meno z Firestore: "$name"');
+        
+        if (name == null) {
+          // Používateľ nemá dokument vo Firestore - vytvoríme ho
+          print('Používateľ nemá dokument vo Firestore, vytváram...');
+          try {
+            // Skúsime získať meno z displayName, ak nie je dostupné, použijeme "Používateľ"
+            final displayName = user.displayName;
+            final userName = (displayName != null && displayName.isNotEmpty) ? displayName : 'Používateľ';
+            print('Používam meno: "$userName"');
+            
+            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+              'email': user.email,
+              'createdAt': FieldValue.serverTimestamp(),
+              'name': userName,
+            });
+            print('Dokument vytvorený pre existujúceho používateľa s menom: "$userName"');
+            
+            // Načítame meno znovu
+            final newName = await _authService.getUserName(user.uid);
+            setState(() {
+              _userName = newName ?? 'Používateľ';
+              _isLoading = false;
+            });
+            print('Meno nastavené v UI na: "$_userName"');
+          } catch (e) {
+            print('Chyba pri vytváraní dokumentu: $e');
+            setState(() {
+              _userName = 'Používateľ';
+              _isLoading = false;
+            });
+          }
+        } else {
+          setState(() {
+            _userName = name;
+            _isLoading = false;
+          });
+          print('Meno nastavené v UI na: "$_userName"');
+        }
+      } else {
+        print('Používateľ nie je prihlásený');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Chyba pri načítaní údajov používateľa: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveName(String newName) async {
+    try {
+      print('=== ULOŽENIE MENA ===');
+      print('Nové meno: "$newName"');
+      
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        print('Ukladám meno pre používateľa: ${user.uid}');
+        
+        // Aktualizujeme meno v Firestore
+        await _authService.updateUserName(user.uid, newName);
+        print('Meno uložené do Firestore');
+        
+        // Aktualizujeme UI
+        setState(() {
+          _userName = newName;
+        });
+        print('UI aktualizované, nové meno: "$_userName"');
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Meno bolo úspešne aktualizované')),
+        );
+      }
+    } catch (e) {
+      print('Chyba pri aktualizácii mena: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba pri aktualizácii mena: $e')),
+      );
+    }
+  }
+
+  Future<void> _editName() async {
+    final currentName = (_userName.isEmpty || _userName == 'Používateľ') ? '' : _userName;
+    final TextEditingController nameController = TextEditingController(text: currentName);
+
+    await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Upraviť meno'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              labelText: 'Celé meno',
+              hintText: 'Meno a Priezvisko',
+            ),
+            autofocus: true,
+            onSubmitted: (value) async {
+              final newName = value.trim();
+              if (newName.isNotEmpty) {
+                await _saveName(newName);
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Zrušiť'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final newName = nameController.text.trim();
+                if (newName.isNotEmpty) {
+                  await _saveName(newName);
+                  Navigator.of(context).pop();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Meno nemôže byť prázdne')),
+                  );
+                }
+              },
+              child: const Text('Uložiť'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email ?? '';
-    final displayName = user?.displayName ?? 'Používateľ';
+
+    if (_isLoading) {
+      return const SafeArea(
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -1322,7 +1488,10 @@ class ProfilePage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
-              Text('Ahoj, $displayName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)),
+              Text(
+                (_userName.isEmpty || _userName == 'Používateľ') ? 'Ahoj!' : 'Ahoj, $_userName', 
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)
+              ),
               const SizedBox(height: 4),
               Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
               const SizedBox(height: 24),
@@ -1330,8 +1499,8 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 16),
               _ProfileRow(
                 icon: Container(width: 28, height: 28, color: Colors.black12),
-                text: displayName,
-                onEdit: () {},
+                text: (_userName.isEmpty || _userName == 'Používateľ') ? 'Nastaviť meno' : _userName,
+                onEdit: _editName,
               ),
               const SizedBox(height: 8),
               _ProfileRow(

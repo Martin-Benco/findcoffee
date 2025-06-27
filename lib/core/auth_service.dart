@@ -11,31 +11,67 @@ class AuthService {
   // Aktuálny používateľ
   User? get currentUser => _auth.currentUser;
 
-  // Registrácia s emailom a heslom
+  // Registrácia s emailom a heslom (bez mena)
   Future<UserCredential> registerWithEmailAndPassword({
     required String email,
     required String password,
-    required String name,
   }) async {
     try {
+      print('=== REGISTRÁCIA POUŽÍVATEĽA ===');
+      print('Email: $email');
+      print('Heslo dĺžka: ${password.length}');
+      
       // Vytvoríme účet v Firebase Auth
-      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Uložíme dodatočné informácie do Firestore
-      if (userCredential.user != null) {
-        await _firestore.collection('users').doc(userCredential.user!.uid).set({
-          'name': name,
-          'email': email,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+      print('Vytváram Firebase Auth účet...');
+      UserCredential userCredential;
+      
+      try {
+        userCredential = await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        print('Používateľ vytvorený s UID: ${userCredential.user?.uid}');
+        
+      } catch (authError) {
+        print('=== CHYBA PRI VYTVÁRANÍ AUTH ÚČTU ===');
+        print('Chyba: $authError');
+        print('Typ chyby: ${authError.runtimeType}');
+        throw authError;
       }
 
       return userCredential;
     } catch (e) {
+      print('=== CHYBA PRI REGISTRÁCII ===');
+      print('Chyba: $e');
+      print('Typ chyby: ${e.runtimeType}');
       throw _handleAuthError(e);
+    }
+  }
+
+  // Vytvorenie dokumentu používateľa v Firestore
+  Future<void> createUserDocument({
+    required String userId,
+    required String email,
+    required String name,
+  }) async {
+    try {
+      print('=== VYTVÁRANIE DOKUMENTU POUŽÍVATEĽA ===');
+      print('User ID: $userId');
+      print('Email: $email');
+      print('Meno: "$name"');
+      
+      await _firestore.collection('users').doc(userId).set({
+        'email': email,
+        'name': name,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('Dokument úspešne vytvorený s menom: "$name"');
+      
+    } catch (e) {
+      print('=== CHYBA PRI VYTVÁRANÍ DOKUMENTU ===');
+      print('Chyba: $e');
+      print('Typ chyby: ${e.runtimeType}');
+      throw e;
     }
   }
 
@@ -88,6 +124,65 @@ class AuthService {
       await _firestore.collection('users').doc(uid).update(data);
     } catch (e) {
       print('Chyba pri aktualizácii údajov používateľa: $e');
+      throw e;
+    }
+  }
+
+  // Získanie mena používateľa priamo z dokumentu
+  Future<String?> getUserName(String uid) async {
+    try {
+      print('=== NAČÍTAVANIE MENA ===');
+      print('UID používateľa: $uid');
+      
+      final doc = await _firestore.collection('users').doc(uid).get();
+      print('Dokument existuje: ${doc.exists}');
+      
+      if (doc.exists) {
+        final data = doc.data();
+        print('Celý dokument: $data');
+        
+        // Skontrolujeme všetky polia
+        print('Všetky polia v dokumente:');
+        data?.forEach((key, value) {
+          print('  $key: $value (typ: ${value.runtimeType})');
+        });
+        
+        final name = data?['name'] as String?;
+        print('Načítané meno: "$name"');
+        print('Typ mena: ${name.runtimeType}');
+        
+        // Skontrolujeme, či je meno prázdne
+        if (name != null) {
+          print('Meno nie je null');
+          if (name.isEmpty) {
+            print('Meno je prázdne string');
+            return null;
+          } else {
+            print('Meno má hodnotu: "$name"');
+            return name;
+          }
+        } else {
+          print('Meno je null');
+          return null;
+        }
+      } else {
+        print('Dokument neexistuje!');
+        return null;
+      }
+    } catch (e) {
+      print('Chyba pri načítaní mena používateľa: $e');
+      return null;
+    }
+  }
+
+  // Aktualizácia mena používateľa priamo v dokumente
+  Future<void> updateUserName(String uid, String name) async {
+    try {
+      print('AuthService: Ukladám meno "$name" pre používateľa: $uid');
+      await _firestore.collection('users').doc(uid).update({'name': name});
+      print('AuthService: Meno úspešne uložené');
+    } catch (e) {
+      print('AuthService: Chyba pri aktualizácii mena používateľa: $e');
       throw e;
     }
   }
