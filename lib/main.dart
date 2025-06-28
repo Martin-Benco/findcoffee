@@ -14,11 +14,13 @@ import 'widgets/food_carousel.dart';
 import 'core/models.dart';
 import 'core/firebase_service.dart';
 import 'core/auth_service.dart';
+import 'core/shared_preferences_service.dart';
 import 'widgets/login_sheet.dart';
 import 'widgets/register_sheet.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'widgets/cafe_detail_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1332,46 +1334,39 @@ class _ProfilePageState extends State<ProfilePage> {
       print('Aktuálny používateľ: ${user?.uid}');
       
       if (user != null) {
-        print('Načítavam meno pre používateľa: ${user.uid}');
-        final name = await _authService.getUserName(user.uid);
-        print('Načítané meno z Firestore: "$name"');
+        // Najprv skúsime načítať meno lokálne
+        print('Načítavam meno lokálne...');
+        final localName = await _authService.getLocalUserName();
+        print('Lokálne meno: "$localName"');
         
-        if (name == null) {
-          // Používateľ nemá dokument vo Firestore - vytvoríme ho
-          print('Používateľ nemá dokument vo Firestore, vytváram...');
-          try {
-            // Skúsime získať meno z displayName, ak nie je dostupné, použijeme "Používateľ"
-            final displayName = user.displayName;
-            final userName = (displayName != null && displayName.isNotEmpty) ? displayName : 'Používateľ';
-            print('Používam meno: "$userName"');
-            
-            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-              'email': user.email,
-              'createdAt': FieldValue.serverTimestamp(),
-              'name': userName,
-            });
-            print('Dokument vytvorený pre existujúceho používateľa s menom: "$userName"');
-            
-            // Načítame meno znovu
-            final newName = await _authService.getUserName(user.uid);
+        if (localName != null && localName.isNotEmpty) {
+          setState(() {
+            _userName = localName;
+            _isLoading = false;
+          });
+          print('Meno nastavené z lokálneho úložiska: "$_userName"');
+        } else {
+          // Ak nemáme lokálne meno, skúsime z Firestore
+          print('Lokálne meno neexistuje, načítavam z Firestore...');
+          final firestoreName = await _authService.getUserName(user.uid);
+          print('Firestore meno: "$firestoreName"');
+          
+          if (firestoreName != null && firestoreName.isNotEmpty) {
+            // Uložíme do lokálneho úložiska
+            await SharedPreferencesService.saveUserName(firestoreName);
             setState(() {
-              _userName = newName ?? 'Používateľ';
+              _userName = firestoreName;
               _isLoading = false;
             });
-            print('Meno nastavené v UI na: "$_userName"');
-          } catch (e) {
-            print('Chyba pri vytváraní dokumentu: $e');
+            print('Meno načítané z Firestore a uložené lokálne: "$_userName"');
+          } else {
+            // Používateľ nemá meno ani lokálne ani v Firestore
+            print('Používateľ nemá meno nastavené');
             setState(() {
               _userName = 'Používateľ';
               _isLoading = false;
             });
           }
-        } else {
-          setState(() {
-            _userName = name;
-            _isLoading = false;
-          });
-          print('Meno nastavené v UI na: "$_userName"');
         }
       } else {
         print('Používateľ nie je prihlásený');
@@ -1396,9 +1391,9 @@ class _ProfilePageState extends State<ProfilePage> {
       if (user != null) {
         print('Ukladám meno pre používateľa: ${user.uid}');
         
-        // Aktualizujeme meno v Firestore
+        // Aktualizujeme meno lokálne aj v Firestore
         await _authService.updateUserName(user.uid, newName);
-        print('Meno uložené do Firestore');
+        print('Meno uložené lokálne aj v Firestore');
         
         // Aktualizujeme UI
         setState(() {
@@ -1544,7 +1539,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Log out'),
               ),
               const Divider(),
-              _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Delete account'),
+              GestureDetector(
+                onTap: () => _deleteAccount(context),
+                child: _SimpleRow(icon: Container(width: 28, height: 28, color: Colors.black12), text: 'Delete account'),
+              ),
               const SizedBox(height: 32),
             ],
           ),
@@ -1555,12 +1553,176 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _logout(BuildContext context) async {
     try {
-      await FirebaseAuth.instance.signOut();
+      await _authService.signOut();
       // Navigácia sa automaticky spracuje cez AuthWrapper
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Chyba pri odhlásení: $e')),
       );
+    }
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    // Najprv zobrazíme dialóg na zadanie hesla
+    final TextEditingController passwordController = TextEditingController();
+    final bool? passwordOk = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Zadajte heslo'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Pre vymazanie účtu je potrebné zadať vaše aktuálne heslo.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Heslo',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                autofocus: true,
+                onSubmitted: (value) async {
+                  if (value.isNotEmpty) {
+                    Navigator.of(context).pop(true);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Zrušiť'),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (passwordController.text.isNotEmpty) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Pokračovať'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (passwordOk == true && passwordController.text.isNotEmpty) {
+      // Potvrdzovací dialóg naozajstné vymazanie
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Vymazať účet'),
+            content: const Text(
+              'Naozaj chcete vymazať svoj účet? Táto akcia je nezvratná a vymaže všetky vaše údaje vrátane obľúbených kaviarní.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Zrušiť'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                ),
+                child: const Text('Vymazať účet'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (confirm == true) {
+        try {
+          // Zobrazíme loading indikátor
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return const AlertDialog(
+                content: Row(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(width: 16),
+                    Text('Vymazávam účet...'),
+                  ],
+                ),
+              );
+            },
+          );
+
+          await _authService.reAuthenticateAndDeleteAccount(passwordController.text);
+          
+          // Zatvoríme loading dialóg
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
+          
+          // Navigácia sa automaticky spracuje cez AuthWrapper
+        } catch (e) {
+          // Zatvoríme loading dialóg
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
+          
+          // Ak prvá metóda zlyhá, skúsime alternatívnu
+          if (e.toString().contains('PigeonUserDetails') || 
+              e.toString().contains('type cast')) {
+            try {
+              // Zobrazíme nový loading indikátor
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (BuildContext context) {
+                  return const AlertDialog(
+                    content: Row(
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(width: 16),
+                        Text('Skúšam alternatívnu metódu...'),
+                      ],
+                    ),
+                  );
+                },
+              );
+              
+              await _authService.alternativeReAuthenticateAndDeleteAccount(passwordController.text);
+              
+              // Zatvoríme loading dialóg
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+              
+              // Navigácia sa automaticky spracuje cez AuthWrapper
+              return;
+            } catch (alternativeError) {
+              // Zatvoríme loading dialóg
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Chyba pri vymazávaní účtu (alternatívna metóda): $alternativeError')),
+              );
+            }
+          } else {
+            // Ak re-autentifikácia alebo vymazanie účtu zlyhá, zobraz len chybovú hlášku
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Chyba pri vymazávaní účtu: $e')),
+            );
+          }
+        }
+      }
     }
   }
 }

@@ -78,10 +78,12 @@ class _LoginSheetState extends State<LoginSheet> {
                   controller: _emailController,
                   enabled: !_isLoading,
                   decoration: const InputDecoration(
-                    labelText: 'Email:',
+                    labelText: 'Email',
                     hintText: 'example@gmail.com',
+                    prefixIcon: Icon(Icons.email, color: Color(0xFF603013)),
                   ),
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -89,17 +91,32 @@ class _LoginSheetState extends State<LoginSheet> {
                   enabled: !_isLoading,
                   obscureText: _obscure,
                   decoration: InputDecoration(
-                    labelText: 'Heslo:',
+                    labelText: 'Heslo',
                     hintText: 'kupujemKaVu!',
+                    prefixIcon: const Icon(Icons.lock, color: Color(0xFF603013)),
                     suffixIcon: IconButton(
                       icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                       onPressed: _isLoading ? null : () => setState(() => _obscure = !_obscure),
                     ),
                   ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _login(),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 8),
                 Align(
