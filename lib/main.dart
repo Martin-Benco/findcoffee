@@ -22,6 +22,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'widgets/cafe_detail_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -840,7 +842,7 @@ class _HomePageState extends State<HomePage> {
       child: Stack(
         children: [
           // Mapa je vždy na pozadí
-          _MapView(currentPosition: _currentPosition),
+          _MapView(currentPosition: _currentPosition, cafes: _cafes),
           // Menu button
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
@@ -1168,106 +1170,111 @@ class _CafeListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => CafeDetailPage(cafe: cafe),
-          ),
-        );
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12.0),
-              child: Image.network(
-                cafe.foto_url,
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 80,
-                  height: 80,
-                  color: AppColors.grey,
-                  child: const Icon(Icons.image_not_supported, color: Colors.white70),
-                ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12.0),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => CafeDetailPage(cafe: cafe),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: SizedBox(
-                height: 80,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            cafe.name,
-                            style: AppTextStyles.bold12,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12.0),
+                  child: Image.network(
+                    cafe.foto_url,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 80,
+                      height: 80,
+                      color: AppColors.grey,
+                      child: const Icon(Icons.image_not_supported, color: Colors.white70),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              cafe.name,
+                              style: AppTextStyles.bold12,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${cafe.distanceKm.toStringAsFixed(1)} km',
-                          style: AppTextStyles.regular12,
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            SvgPicture.asset(
-                              'assets/icons/recenzieHviezdaPlna.svg',
-                              width: 16,
-                              height: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              cafe.rating.toStringAsFixed(1),
-                              style: AppTextStyles.regular12,
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            SvgPicture.asset(
-                              'assets/icons/parkinghnede.svg',
-                              width: 16,
-                              height: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            SvgPicture.asset(
-                              'assets/icons/menuhnede.svg',
-                              width: 16,
-                              height: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            SvgPicture.asset(
-                              'assets/icons/wifihnede.svg',
-                              width: 16,
-                              height: 16,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 8),
+                          Text(
+                            '${cafe.distanceKm.toStringAsFixed(1)} km',
+                            style: AppTextStyles.regular12,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icons/recenzieHviezdaPlna.svg',
+                                width: 16,
+                                height: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                cafe.rating.toStringAsFixed(1),
+                                style: AppTextStyles.regular12,
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icons/parkinghnede.svg',
+                                width: 16,
+                                height: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              SvgPicture.asset(
+                                'assets/icons/menuhnede.svg',
+                                width: 16,
+                                height: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              SvgPicture.asset(
+                                'assets/icons/wifihnede.svg',
+                                width: 16,
+                                height: 16,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1276,7 +1283,8 @@ class _CafeListItem extends StatelessWidget {
 
 class _MapView extends StatefulWidget {
   final Position? currentPosition;
-  const _MapView({this.currentPosition});
+  final List<Cafe> cafes;
+  const _MapView({this.currentPosition, required this.cafes});
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -1284,16 +1292,67 @@ class _MapView extends StatefulWidget {
 
 class _MapViewState extends State<_MapView> {
   GoogleMapController? _mapController;
+  Set<Marker> _markers = {};
+  String? _mapStyle;
+  BitmapDescriptor? _customMarkerIcon;
 
-  // Počiatočná pozícia (Bratislava) - použije sa, kým sa nezíska aktuálna poloha
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(48.1486, 17.1077),
     zoom: 15.0,
   );
 
   @override
+  void initState() {
+    super.initState();
+    _loadCustomMarkerIcon();
+    _loadMapStyle();
+  }
+
+  /// Vynuluje cache a znovu načíta marker
+  void _reloadMarker() {
+    print('🔄 Vynulujem cache a znovu načítavam marker...');
+    setState(() {
+      _customMarkerIcon = null;
+    });
+    _loadCustomMarkerIcon();
+  }
+
+  /// Načíta vlastný PNG marker z assetov
+  Future<void> _loadCustomMarkerIcon() async {
+    try {
+      print('🔄 Načítavam vlastný marker s veľkosťou 96x64...');
+      _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(96, 64)), // Nastavené na 96x64
+        'assets/icons/kavMapIcon.png',
+      );
+      print('✅ Vlastný marker úspešne načítaný s veľkosťou 96x64');
+      // Po načítaní ikony aktualizujeme markery
+      _updateMarkers();
+    } catch (e) {
+      print('❌ Chyba pri načítaní vlastného marker ikony: $e');
+      // Ak sa načítanie nezdaří, použijeme štandardný marker
+      _customMarkerIcon = BitmapDescriptor.defaultMarker;
+      _updateMarkers();
+    }
+  }
+
+  Future<void> _loadMapStyle() async {
+    try {
+      final styleString = await rootBundle.loadString('assets/map_style.json');
+      setState(() {
+        _mapStyle = styleString;
+      });
+    } catch (e) {
+      print('Chyba pri načítaní mapového štýlu: $e');
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant _MapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.cafes != oldWidget.cafes) {
+      _updateMarkers();
+    }
     if (widget.currentPosition != null && widget.currentPosition != oldWidget.currentPosition) {
       _mapController?.animateCamera(
         CameraUpdate.newCameraPosition(
@@ -1306,13 +1365,30 @@ class _MapViewState extends State<_MapView> {
     }
   }
 
+  void _updateMarkers() {
+    setState(() {
+      _markers = widget.cafes.map((cafe) {
+        return Marker(
+          markerId: MarkerId(cafe.id),
+          position: LatLng(cafe.latitude, cafe.longitude),
+          icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
+          infoWindow: InfoWindow(title: cafe.name),
+        );
+      }).toSet();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return GoogleMap(
       onMapCreated: (GoogleMapController controller) {
         _mapController = controller;
         
-        // Ak už máme aktuálnu polohu, presunieme kameru
+        // Aplikovanie mapového štýlu
+        if (_mapStyle != null) {
+          controller.setMapStyle(_mapStyle!);
+        }
+        
         if (widget.currentPosition != null) {
           controller.animateCamera(
             CameraUpdate.newCameraPosition(
@@ -1334,6 +1410,7 @@ class _MapViewState extends State<_MapView> {
       myLocationButtonEnabled: true,
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
+      markers: _markers,
     );
   }
 

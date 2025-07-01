@@ -69,6 +69,7 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/images/bg_coffee.png
+    - assets/map_style.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:
