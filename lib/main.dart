@@ -492,6 +492,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void didUpdateWidget(HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.cafes != oldWidget.cafes) {
+      setState(() {
+        _cafes = widget.cafes;
+      });
+    }
+    if (widget.currentPosition != oldWidget.currentPosition) {
+      setState(() {
+        _currentPosition = widget.currentPosition;
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _sheetController.dispose();
