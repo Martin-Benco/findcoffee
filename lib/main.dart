@@ -11,6 +11,7 @@ import 'widgets/section_title.dart';
 import 'widgets/drink_carousel.dart';
 import 'widgets/cafe_carousel.dart';
 import 'widgets/food_carousel.dart';
+import 'widgets/filter_page.dart';
 import 'core/models.dart';
 import 'core/firebase_service.dart';
 import 'core/auth_service.dart';
@@ -253,6 +254,9 @@ class _MainNavigationState extends State<MainNavigation> {
   // Cache pre pages
   final List<Widget> _pages = [];
 
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _isSearchFocused = false;
+
   @override
   void initState() {
     super.initState();
@@ -260,6 +264,11 @@ class _MainNavigationState extends State<MainNavigation> {
     
     // Test menu kaviarne
     _firebaseService.testCafeMenu('bfJ85NHm98zlLipUroPe');
+    _searchFocusNode.addListener(() {
+      setState(() {
+        _isSearchFocused = _searchFocusNode.hasFocus;
+      });
+    });
   }
 
   Future<void> _loadData() async {
@@ -436,6 +445,8 @@ class _HomePageState extends State<HomePage> {
   Position? _currentPosition;
   final TextEditingController _searchController = TextEditingController();
   final DraggableScrollableController _sheetController = DraggableScrollableController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _isSearchFocused = false;
   
   // Mock dáta pre nápoje a jedlá (zatiaľ)
   final List<Drink> _drinks = const [
@@ -463,6 +474,12 @@ class _HomePageState extends State<HomePage> {
     Food(name: 'Pistachio', imageUrl: 'assets/images/pistachio.jpg'),
   ];
 
+  List<Map<String, dynamic>> _activeFilters = [];
+  SortOption? _selectedSort;
+  double? _selectedMinRating;
+  double? _selectedMaxDistance;
+  Set<FilterFeatures> _selectedFeatures = {};
+
   @override
   void initState() {
     super.initState();
@@ -471,6 +488,7 @@ class _HomePageState extends State<HomePage> {
     
     // Test menu kaviarne
     widget.firebaseService.testCafeMenu('bfJ85NHm98zlLipUroPe');
+    _searchFocusNode.addListener(_onSearchFocusChange);
   }
 
   @override
@@ -681,232 +699,433 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _applyFiltersAndOpenSearch(Map<String, dynamic> filters) {
+    setState(() {
+      _selectedSort = filters['sort'];
+      _selectedMinRating = filters['minRating'];
+      _selectedMaxDistance = filters['maxDistance'];
+      _selectedFeatures = (filters['features'] as List?)?.map((e) => e as FilterFeatures).toSet() ?? {};
+    });
+    _applyFiltersToCafes(filters);
+    _updateActiveFilters(filters);
+    final isDefault = (filters['minRating'] == null || filters['minRating'] == 0.0)
+      && (filters['maxDistance'] == null)
+      && (filters['features'] == null || (filters['features'] as List).isEmpty)
+      && (filters['sort'] == null);
+    if (isDefault) {
+      setState(() {
+        _mode = HomeMode.map;
+        _isFiltered = false;
+      });
+    } else {
+      _animateSheetToSearch();
+      setState(() {
+        _mode = HomeMode.search;
+        _isFiltered = true;
+      });
+    }
+  }
+
+  void _updateActiveFilters(Map<String, dynamic> filters) {
+    final List<Map<String, dynamic>> chips = [];
+    if (filters['sort'] != null) {
+      String label = '';
+      if (filters['sort'] == SortOption.name) label = 'A-Z';
+      if (filters['sort'] == SortOption.rating) label = 'Hodnotenie';
+      if (filters['sort'] == SortOption.distance) label = 'Vzdialenosť';
+      chips.add({'type': 'sort', 'label': label, 'sort': filters['sort']});
+    }
+    if (filters['minRating'] != null) {
+      chips.add({'type': 'minRating', 'label': 'od ${filters['minRating']}★'});
+    }
+    if (filters['maxDistance'] != null) {
+      chips.add({'type': 'maxDistance', 'label': 'do ${filters['maxDistance']} km'});
+    }
+    if (filters['features'] != null && filters['features'].isNotEmpty) {
+      for (var f in filters['features']) {
+        String label = f.toString().split('.').last;
+        if (label == 'wifi') label = 'WiFi';
+        if (label == 'parking') label = 'Parkovanie';
+        if (label == 'menu') label = 'Menu';
+        chips.add({'type': 'feature', 'label': label, 'feature': f});
+      }
+    }
+    setState(() {
+      _activeFilters = chips;
+    });
+  }
+
+  void _removeFilterChip(Map<String, dynamic> chip) {
+    // Odstránim chip zo zoznamu a aktualizujem stav filtrov
+    setState(() {
+      _activeFilters.remove(chip);
+      // Aktualizujem stavové premenné podľa zostávajúcich chipov
+      _selectedMinRating = _activeFilters.firstWhere((f) => f['type'] == 'minRating', orElse: () => {'label': null})['label'] != null ? double.tryParse(_activeFilters.firstWhere((f) => f['type'] == 'minRating', orElse: () => {'label': null})['label'].toString().replaceAll(RegExp(r'[^0-9\.]'), '')) : null;
+      _selectedMaxDistance = _activeFilters.firstWhere((f) => f['type'] == 'maxDistance', orElse: () => {'label': null})['label'] != null ? double.tryParse(_activeFilters.firstWhere((f) => f['type'] == 'maxDistance', orElse: () => {'label': null})['label'].toString().replaceAll(RegExp(r'[^0-9\.]'), '')) : null;
+      _selectedFeatures = _activeFilters.where((f) => f['type'] == 'feature').map((f) => f['feature'] as FilterFeatures).toSet();
+      // Ak nie sú žiadne filtre, nastavím _isFiltered na false
+      _isFiltered = _activeFilters.isNotEmpty;
+    });
+    // Aplikujem nový stav filtrov
+    _applyFiltersAndOpenSearch(_getCurrentFilters());
+  }
+
+  void _applyFiltersToCafes(Map<String, dynamic> filters) {
+    // Ak nie je žiadny filter aktívny, zobraz všetky kaviarne a default karusely
+    if ((filters['minRating'] == null || filters['minRating'] == 0.0) &&
+        (filters['maxDistance'] == null) &&
+        (filters['features'] == null || (filters['features'] as List).isEmpty)) {
+      setState(() {
+        _filteredCafes = _cafes;
+        _isFiltered = false;
+        // Ak nie je nič v search bare, prepni na default mód
+        if (_searchController.text.isEmpty) {
+          _mode = HomeMode.map;
+        }
+      });
+      return;
+    }
+
+    // ... inak aplikuj filtrovanie podľa zadaných filtrov ...
+    setState(() {
+      _filteredCafes = [];
+      _isFiltered = true;
+    });
+  }
+
+  Map<String, dynamic> _getCurrentFilters() {
+    return {
+      'sort': _selectedSort,
+      'minRating': _selectedMinRating,
+      'maxDistance': _selectedMaxDistance,
+      'features': _selectedFeatures.toList(),
+    };
+  }
+
+  void _onSearchFocusChange() {
+    final wasFocused = _isSearchFocused;
+    _isSearchFocused = _searchFocusNode.hasFocus;
+    if (_isSearchFocused && !wasFocused) {
+      _mode = HomeMode.search;
+      _animateSheetToSearch();
+      setState(() {});
+    } else if (!_isSearchFocused && wasFocused) {
+      _mode = HomeMode.map;
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Mapa je vždy na pozadí
-        _MapView(currentPosition: _currentPosition),
-
-        // Menu button
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 16,
-          left: 16,
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  spreadRadius: 1,
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () {
+        _searchFocusNode.unfocus();
+      },
+      child: Stack(
+        children: [
+          // Mapa je vždy na pozadí
+          _MapView(currentPosition: _currentPosition),
+          // Menu button
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    spreadRadius: 1,
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icons/ciernemenu.svg',
+                  width: 24,
+                  height: 24,
                 ),
-              ],
-            ),
-            child: Center(
-              child: SvgPicture.asset(
-                'assets/icons/ciernemenu.svg',
-                width: 24,
-                height: 24,
               ),
             ),
           ),
-        ),
-
-        DraggableScrollableSheet(
-          controller: _sheetController,
-          initialChildSize: 0.75, // cca výška search baru
-          minChildSize: 0.15,
-          maxChildSize: 1.0,
-          snap: true,
-          snapSizes: const [0.15, 0.75, 1.0],
-          builder: (context, scrollController) {
-            return NotificationListener<DraggableScrollableNotification>(
-              onNotification: (notification) {
-                _onSheetChanged(notification.extent);
-                return true;
-              },
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: ListView(
-                  controller: scrollController,
-                  children: [
-                    const SizedBox(height: 12),
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 300),
-                      opacity: _mode == HomeMode.search ? 0.0 : 1.0,
-                      child: Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppColors.grey,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
+          DraggableScrollableSheet(
+            controller: _sheetController,
+            initialChildSize: 0.75, // cca výška search baru
+            minChildSize: 0.15,
+            maxChildSize: 1.0,
+            snap: true,
+            snapSizes: const [0.15, 0.75, 1.0],
+            builder: (context, scrollController) {
+              return NotificationListener<DraggableScrollableNotification>(
+                onNotification: (notification) {
+                  _onSheetChanged(notification.extent);
+                  return true;
+                },
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, -2),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                        height: _mode == HomeMode.search ? 44 : 48,
-                        decoration: BoxDecoration(
-                          color: _mode == HomeMode.search ? AppColors.background : AppColors.grey,
-                          borderRadius: BorderRadius.circular(12),
-                          border: _mode == HomeMode.search
-                              ? Border.all(color: AppColors.black, width: 1.0)
-                              : null,
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 16),
-                            SvgPicture.asset(
-                              'assets/icons/searchLupa.svg',
-                              width: 24,
-                              height: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                onTap: _animateSheetToSearch,
-                                textAlignVertical: TextAlignVertical.center,
-                                decoration: const InputDecoration(
-                                  isCollapsed: true,
-                                  hintText: 'Vyhľadávanie kaviarní, nápojov...',
-                                  border: InputBorder.none,
-                                  hintStyle: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                style: AppTextStyles.regular12,
-                                onChanged: (value) {
-                                  if (value.isEmpty) {
-                                    _resetSearchAndFilter();
-                                  } else {
-                                    _handleSearchQuery(value);
-                                  }
-                                },
-                                onSubmitted: (value) {
-                                  _handleSearchQuery(value);
-                                },
-                              ),
-                            ),
-                            if (_searchController.text.isNotEmpty)
-                              GestureDetector(
-                                onTap: _resetSearchAndFilter,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(right: 16.0),
-                                  child: SvgPicture.asset(
-                                    'assets/icons/cierneX.svg',
-                                    width: 20,
-                                    height: 20,
-                                  ),
-                                ),
-                              )
-                            else
-                              Padding(
-                                padding: const EdgeInsets.only(right: 16.0),
-                                child: SvgPicture.asset(
-                                  'assets/icons/filterIcon.svg',
-                                  width: 24,
-                                  height: 24,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    if (_isSearching || _isFiltered) ...[
-                      // --- Nový layout pre výsledky vyhľadávania ---
+                    ],
+                  ),
+                  child: ListView(
+                    controller: scrollController,
+                    children: [
+                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Row(
                           children: [
-                            Expanded(
-                              child: SectionTitle(
-                                _isSearching 
-                                  ? 'Výsledky vyhľadávania'
-                                  : _selectedDrink != null 
-                                    ? 'Kaviarne s $_selectedDrink' 
-                                    : 'Kaviarne s $_selectedFood'!, 
-                                isLarge: true
+                            Flexible(
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.ease,
+                                constraints: BoxConstraints(
+                                  minWidth: 0,
+                                  maxWidth: _isSearchFocused ? MediaQuery.of(context).size.width - 32 - 70 : MediaQuery.of(context).size.width - 32,
+                                ),
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: _isSearchFocused ? AppColors.background : AppColors.grey,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: _isSearchFocused
+                                      ? Border.all(color: AppColors.black, width: 1.0)
+                                      : null,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const SizedBox(width: 16),
+                                    SvgPicture.asset(
+                                      'assets/icons/searchLupa.svg',
+                                      width: 24,
+                                      height: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _searchController,
+                                        focusNode: _searchFocusNode,
+                                        textAlignVertical: TextAlignVertical.center,
+                                        decoration: const InputDecoration(
+                                          isCollapsed: true,
+                                          hintText: 'Vyhľadávanie kaviarní',
+                                          border: InputBorder.none,
+                                          hintStyle: TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        style: AppTextStyles.regular12,
+                                        onChanged: (value) {
+                                          if (value.isEmpty) {
+                                            _resetSearchAndFilter();
+                                          } else {
+                                            _handleSearchQuery(value);
+                                          }
+                                          setState(() {});
+                                        },
+                                        onSubmitted: (value) {
+                                          _handleSearchQuery(value);
+                                          _searchFocusNode.unfocus();
+                                        },
+                                        onEditingComplete: () {
+                                          _searchFocusNode.unfocus();
+                                        },
+                                      ),
+                                    ),
+                                    if (_isSearchFocused)
+                                      _searchController.text.isNotEmpty
+                                        ? GestureDetector(
+                                            onTap: () {
+                                              _resetSearchAndFilter();
+                                            },
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(right: 0.0),
+                                              child: SvgPicture.asset(
+                                                'assets/icons/cierneX.svg',
+                                                width: 20,
+                                                height: 20,
+                                              ),
+                                            ),
+                                          )
+                                        : const SizedBox(width: 20)
+                                    else
+                                      GestureDetector(
+                                        onTap: () async {
+                                          await showModalBottomSheet(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            backgroundColor: Colors.transparent,
+                                            builder: (context) => FilterPage(
+                                              onApplyFilters: (filters) {
+                                                _applyFiltersAndOpenSearch(filters);
+                                              },
+                                              initialFilters: _getCurrentFilters(),
+                                            ),
+                                          );
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(right: 0.0),
+                                          child: SvgPicture.asset(
+                                            'assets/icons/filterIcon.svg',
+                                            width: 24,
+                                            height: 24,
+                                          ),
+                                        ),
+                                      ),
+                                    const SizedBox(width: 16),
+                                  ],
+                                ),
                               ),
                             ),
+                            if (_isSearchFocused)
+                              AnimatedOpacity(
+                                opacity: _isSearchFocused ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: SizedBox(
+                                  width: 70,
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {
+                                        _searchFocusNode.unfocus();
+                                      },
+                                      child: const Text('Zrušiť', style: TextStyle(fontSize: 16)),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
-                      ),
-                      if (_isLoadingCafes)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(20.0),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else if ((_isSearching && _searchResults.isEmpty) || (_isFiltered && _filteredCafes.isEmpty))
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20.0),
-                            child: Text(
-                              _isSearching ? 'Žiadne kaviarne neboli nájdené' : 'Žiadne kaviarne s týmto produktom neboli nájdené',
-                              style: const TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                      else
-                        ...(_isSearching ? _searchResults : _filteredCafes)
-                            .map((cafe) => _CafeListItem(cafe: cafe))
-                            .toList(),
-                      const SizedBox(height: 24),
-
-                    ] else ...[
-                      // --- Pôvodný layout s karuselmi ---
-                      const SectionTitle('Populárne nápoje', isLarge: true),
-                      DrinkCarousel(
-                        drinks: _drinks,
-                        onDrinkTap: _onDrinkTap,
                       ),
                       const SizedBox(height: 16),
-                      const Row(
-                        children: [
-                          Expanded(
-                            child: SectionTitle('Kaviarne v okolí', isLarge: true),
+                      
+                      if (_activeFilters.isNotEmpty) ...[
+                        SizedBox(
+                          height: 40,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            itemCount: _activeFilters.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 8),
+                            itemBuilder: (context, i) {
+                              final chip = _activeFilters[i];
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF9C5B43),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      chip['label'],
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (chip['type'] == 'sort') {
+                                          setState(() {
+                                            _selectedSort = null;
+                                          });
+                                          _applyFiltersAndOpenSearch(_getCurrentFilters());
+                                        } else {
+                                          _removeFilterChip(chip);
+                                        }
+                                      },
+                                      child: const Icon(Icons.close, color: Colors.white, size: 18),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                        ],
-                      ),
-                      if (_cafes.isEmpty)
-                        const Center(
-                          child: Padding(
+                        ),
+                      ],
+                      
+                      if (_isSearching || _isFiltered) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Row(
+                            children: [
+                              const Text('Výsledky:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                              const Spacer(),
+                            ],
+                          ),
+                        ),
+                        if (_isSearching && _searchResults.isNotEmpty) ...[
+                          ..._searchResults.map((cafe) => _CafeListItem(cafe: cafe)),
+                        ] else if (_isSearching && _searchResults.isEmpty && _searchController.text.isNotEmpty) ...[
+                          const Padding(
                             padding: EdgeInsets.all(20.0),
-                            child: Text(
-                              'Žiadne kaviarne neboli nájdené',
-                              style: TextStyle(color: Colors.grey),
+                            child: Center(
+                              child: Text(
+                                'Žiadne kaviarne neboli nájdené',
+                                style: TextStyle(color: Colors.grey),
+                              ),
                             ),
                           ),
-                        )
-                      else
-                        CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
-                      if (_mode == HomeMode.search || _mode == HomeMode.searchMap) ...[
+                        ] else if (_isFiltered && _filteredCafes.isNotEmpty) ...[
+                          ..._filteredCafes.map((cafe) => _CafeListItem(cafe: cafe)),
+                        ] else if (_isFiltered && _filteredCafes.isEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: Center(
+                              child: Text(
+                                'Žiadne kaviarne neboli nájdené',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                      
+                      if (!_isSearching && !_isFiltered) ...[
+                        // --- Pôvodný layout s karuselmi ---
+                        const SectionTitle('Populárne nápoje', isLarge: true),
+                        DrinkCarousel(
+                          drinks: _drinks,
+                          onDrinkTap: _onDrinkTap,
+                        ),
+                        const SizedBox(height: 16),
+                        const Row(
+                          children: [
+                            Expanded(
+                              child: SectionTitle('Kaviarne v okolí', isLarge: true),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            // Odstránené zobrazovanie sortu v texte
+                          ],
+                        ),
+                        if (_cafes.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20.0),
+                              child: Text(
+                                'Žiadne kaviarne neboli nájdené',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          )
+                        else
+                          CafeCarousel(cafes: _cafes, itemWidth: 200, itemHeight: 140),
                         const SizedBox(height: 16),
                         const SectionTitle('Niečo pod zub', isLarge: true),
                         FoodCarousel(
@@ -914,17 +1133,15 @@ class _HomePageState extends State<HomePage> {
                           onFoodTap: _onFoodTap,
                         ),
                         const SizedBox(height: 24),
-                      ] else ...[
-                        const SizedBox(height: 24),
                       ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            );
-          },
-        ),
-      ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

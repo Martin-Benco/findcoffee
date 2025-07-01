@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_colors.dart';
-import '../core/firebase_service.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class FoodCarousel extends StatefulWidget {
   final List<Food> foods;
@@ -24,57 +22,6 @@ class FoodCarousel extends StatefulWidget {
 }
 
 class _FoodCarouselState extends State<FoodCarousel> {
-  Set<String> _favoriteFoods = {};
-  final FirebaseService _firebaseService = FirebaseService();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFavorites();
-  }
-
-  Future<void> _loadFavorites() async {
-    try {
-      final favorites = await _firebaseService.getFavorites();
-      setState(() {
-        _favoriteFoods = favorites
-            .where((f) => f.type == FavoriteType.food)
-            .map((f) => f.id)
-            .toSet();
-      });
-    } catch (e) {
-      print('Chyba pri načítaní obľúbených jedál: $e');
-    }
-  }
-
-  Future<void> _toggleFavorite(Food food) async {
-    try {
-      final favoriteItem = FavoriteItem(
-        type: FavoriteType.food,
-        id: food.name,
-        name: food.name,
-        imageUrl: food.imageUrl,
-      );
-
-      if (_favoriteFoods.contains(food.name)) {
-        await _firebaseService.removeFromFavorites(food.name);
-        setState(() {
-          _favoriteFoods.remove(food.name);
-        });
-      } else {
-        await _firebaseService.addToFavorites(favoriteItem);
-        setState(() {
-          _favoriteFoods.add(food.name);
-        });
-      }
-    } catch (e) {
-      print('Chyba pri prepínaní obľúbených: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Chyba: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -95,37 +42,19 @@ class _FoodCarouselState extends State<FoodCarousel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Stack(
-                  children: [
-                    Container(
-                      width: widget.itemSize,
-                      height: widget.itemSize,
-                      decoration: BoxDecoration(
-                        color: AppColors.grey,
-                        borderRadius: BorderRadius.circular(16),
-                        image: food.imageUrl.isNotEmpty
-                            ? DecorationImage(
-                                image: AssetImage(food.imageUrl),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () => _toggleFavorite(food),
-                        child: SvgPicture.asset(
-                          _favoriteFoods.contains(food.name)
-                            ? 'assets/icons/bieleHeartPlne.svg'
-                            : 'assets/icons/bieleHeartEmpty.svg',
-                          width: 24,
-                          height: 24,
-                        ),
-                      ),
-                    ),
-                  ],
+                Container(
+                  width: widget.itemSize,
+                  height: widget.itemSize,
+                  decoration: BoxDecoration(
+                    color: AppColors.grey,
+                    borderRadius: BorderRadius.circular(16),
+                    image: food.imageUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: AssetImage(food.imageUrl),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
