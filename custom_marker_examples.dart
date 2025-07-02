@@ -11,7 +11,7 @@ class CustomMarkerExamples {
     try {
       return await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(48, 48)),
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
     } catch (e) {
       print('Chyba pri načítaní PNG markeru: $e');
@@ -24,7 +24,7 @@ class CustomMarkerExamples {
     try {
       return await BitmapDescriptor.fromAssetImage(
         ImageConfiguration(size: Size(size, size)),
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
     } catch (e) {
       print('Chyba pri načítaní markeru s veľkosťou $size: $e');
@@ -33,7 +33,7 @@ class CustomMarkerExamples {
   }
 
   /// Príklad 3: Vlastný marker s rôznymi farbami (používa štandardný marker s farbou)
-  static BitmapDescriptor getColoredMarker(BitmapDescriptor.Hue hue) {
+  static BitmapDescriptor getColoredMarker(double hue) {
     return BitmapDescriptor.defaultMarkerWithHue(hue);
   }
 
@@ -53,7 +53,7 @@ class CustomMarkerExamples {
     
     switch (cafeType.toLowerCase()) {
       case 'coffee':
-        iconPath = 'assets/icons/kavMapIcon.png';
+        iconPath = 'assets/icons/kavamark.png';
         break;
       case 'restaurant':
         iconPath = 'assets/icons/restaurant_icon.png';
@@ -62,7 +62,7 @@ class CustomMarkerExamples {
         iconPath = 'assets/icons/cafe_icon.png';
         break;
       default:
-        iconPath = 'assets/icons/kavMapIcon.png';
+        iconPath = 'assets/icons/kavamark.png';
     }
 
     try {
@@ -79,26 +79,26 @@ class CustomMarkerExamples {
   /// Príklad 6: Vlastný marker s rôznymi farbami podľa hodnotenia
   static BitmapDescriptor getRatingMarker(double rating) {
     if (rating >= 4.5) {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.green);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
     } else if (rating >= 4.0) {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.yellow);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
     } else if (rating >= 3.0) {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.orange);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
     } else {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.red);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
     }
   }
 
   /// Príklad 7: Vlastný marker s rôznymi farbami podľa vzdialenosti
   static BitmapDescriptor getDistanceMarker(double distanceKm) {
     if (distanceKm <= 1.0) {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.green);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
     } else if (distanceKm <= 3.0) {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.yellow);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
     } else if (distanceKm <= 5.0) {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.orange);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
     } else {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.red);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
     }
   }
 }

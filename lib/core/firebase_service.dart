@@ -684,6 +684,33 @@ class FirebaseService {
     }
   }
 
+  /// Získa aktuálne otváracie hodiny pre dnešný deň
+  Future<OpeningHours?> getCurrentDayOpeningHours(String cafeId) async {
+    try {
+      final allHours = await getOpeningHours(cafeId);
+      final now = DateTime.now();
+      final currentDay = now.weekday; // 1 = Monday, 7 = Sunday
+      
+      // Mapovanie dní týždňa
+      final dayMapping = {
+        'Po': 1, 'Ut': 2, 'St': 3, 'Št': 4, 'Pi': 5, 'So': 6, 'Ne': 7,
+        'Pondelok': 1, 'Utorok': 2, 'Streda': 3, 'Štvrtok': 4, 'Piatok': 5, 'Sobota': 6, 'Nedeľa': 7,
+        'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7,
+      };
+
+      for (final hours in allHours) {
+        if (dayMapping[hours.den] == currentDay) {
+          return hours;
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      print('Chyba pri získavaní aktuálnych otváracích hodín: $e');
+      return null;
+    }
+  }
+
   String _skratkaDna(String den) {
     switch (den.toLowerCase()) {
       case 'monday': return 'Po';

@@ -33,7 +33,7 @@ class _DebugMarkerTestState extends State<DebugMarkerTest> {
       
       final marker = await BitmapDescriptor.fromAssetImage(
         ImageConfiguration(size: Size(_currentSize, _currentSize)),
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
       
       setState(() {

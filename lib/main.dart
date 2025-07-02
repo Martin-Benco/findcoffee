@@ -843,10 +843,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _closeCafeSheet() {
-    setState(() {
-      _showCafeSheet = false;
-      _selectedCafe = null;
-    });
+    if (_showCafeSheet) {
+      setState(() {
+        _showCafeSheet = false;
+        _selectedCafe = null;
+      });
+    }
   }
 
   @override
@@ -857,6 +859,7 @@ class _HomePageState extends State<HomePage> {
           currentPosition: _currentPosition,
           cafes: _cafes,
           onCafeSelected: _onCafeSelected,
+          onMapTap: _showCafeSheet ? _closeCafeSheet : null,
         ),
         if (!_showCafeSheet) ...[
           // Menu button
@@ -1183,9 +1186,9 @@ class _HomePageState extends State<HomePage> {
               height: double.infinity,
               child: Align(
                 alignment: Alignment.bottomCenter,
-                child: FractionallySizedBox(
-                  heightFactor: 0.5,
-                  child: CafeInfoBottomSheet(cafe: _selectedCafe!),
+                child: CafeInfoBottomSheet(
+                  cafe: _selectedCafe!,
+                  onClose: _closeCafeSheet,
                 ),
               ),
             ),
@@ -1317,7 +1320,13 @@ class _MapView extends StatefulWidget {
   final Position? currentPosition;
   final List<Cafe> cafes;
   final void Function(Cafe)? onCafeSelected;
-  const _MapView({this.currentPosition, required this.cafes, this.onCafeSelected});
+  final VoidCallback? onMapTap;
+  const _MapView({
+    this.currentPosition, 
+    required this.cafes, 
+    this.onCafeSelected,
+    this.onMapTap,
+  });
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -1356,7 +1365,7 @@ class _MapViewState extends State<_MapView> {
       print('🔄 Načítavam vlastný marker s veľkosťou 96x64...');
       _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(96, 64)), // Nastavené na 96x64
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
       print('✅ Vlastný marker úspešne načítaný s veľkosťou 96x64');
       // Po načítaní ikony aktualizujeme markery
@@ -1436,6 +1445,11 @@ class _MapViewState extends State<_MapView> {
               ),
             ),
           );
+        }
+      },
+      onTap: (LatLng position) {
+        if (widget.onMapTap != null) {
+          widget.onMapTap!();
         }
       },
       initialCameraPosition: widget.currentPosition != null
@@ -1809,6 +1823,163 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final TextEditingController currentPasswordController = TextEditingController();
+    final TextEditingController newPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController = TextEditingController();
+    bool showReauth = true;
+    bool isLoading = false;
+    String? errorText;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Zmeniť heslo'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (user == null) ...[
+                    const Text('Nie ste prihlásený. Zadajte e-mail pre reset hesla.'),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: currentPasswordController,
+                      decoration: const InputDecoration(labelText: 'E-mail'),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                  ] else ...[
+                    TextField(
+                      controller: currentPasswordController,
+                      decoration: const InputDecoration(
+                        labelText: 'Aktuálne heslo',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPasswordController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nové heslo',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: confirmPasswordController,
+                      decoration: const InputDecoration(
+                        labelText: 'Potvrď nové heslo',
+                        border: OutlineInputBorder(),
+                      ),
+                      obscureText: true,
+                    ),
+                  ],
+                  if (errorText != null) ...[
+                    const SizedBox(height: 12),
+                    Text(errorText!, style: const TextStyle(color: Colors.red)),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Zrušiť'),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setState(() => isLoading = true);
+                          if (user == null) {
+                            // Reset hesla cez email
+                            final email = currentPasswordController.text.trim();
+                            if (email.isEmpty) {
+                              setState(() {
+                                errorText = 'Zadajte e-mail.';
+                                isLoading = false;
+                              });
+                              return;
+                            }
+                            try {
+                              await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                              if (context.mounted) Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('E-mail na obnovenie hesla bol odoslaný.')),
+                              );
+                            } on FirebaseAuthException catch (e) {
+                              setState(() {
+                                errorText = e.message;
+                                isLoading = false;
+                              });
+                            }
+                            return;
+                          }
+                          final newPassword = newPasswordController.text.trim();
+                          final confirmPassword = confirmPasswordController.text.trim();
+                          final currentPassword = currentPasswordController.text.trim();
+                          if (currentPassword.isEmpty) {
+                            setState(() {
+                              errorText = 'Zadajte aktuálne heslo.';
+                              isLoading = false;
+                            });
+                            return;
+                          }
+                          if (newPassword.isEmpty) {
+                            setState(() {
+                              errorText = 'Zadajte nové heslo.';
+                              isLoading = false;
+                            });
+                            return;
+                          }
+                          if (confirmPassword.isEmpty) {
+                            setState(() {
+                              errorText = 'Potvrďte nové heslo.';
+                              isLoading = false;
+                            });
+                            return;
+                          }
+                          if (newPassword != confirmPassword) {
+                            setState(() {
+                              errorText = 'Nové heslá sa nezhodujú.';
+                              isLoading = false;
+                            });
+                            return;
+                          }
+                          try {
+                            final credential = EmailAuthProvider.credential(
+                              email: user.email!,
+                              password: currentPassword,
+                            );
+                            await user.reauthenticateWithCredential(credential);
+                            await user.updatePassword(newPassword);
+                            if (context.mounted) Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Heslo bolo úspešne zmenené.')),
+                            );
+                          } on FirebaseAuthException catch (e) {
+                            setState(() {
+                              errorText = e.message;
+                              isLoading = false;
+                            });
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(user == null ? 'Odoslať reset' : 'Zmeniť heslo'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -1879,7 +2050,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   height: 28,
                   child: SvgPicture.asset('assets/icons/Lock.svg'),
                 ), 
-                text: 'Heslo'
+                text: 'Zmeniť heslo',
+                onTap: _showChangePasswordDialog,
               ),
               const Divider(),
               _SimpleRow(
@@ -2139,11 +2311,12 @@ class _ProfileRow extends StatelessWidget {
 class _SimpleRow extends StatelessWidget {
   final Widget icon;
   final String text;
-  const _SimpleRow({required this.icon, required this.text});
+  final VoidCallback? onTap;
+  const _SimpleRow({required this.icon, required this.text, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -2153,5 +2326,14 @@ class _SimpleRow extends StatelessWidget {
         ],
       ),
     );
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: row,
+      );
+    } else {
+      return row;
+    }
   }
 }

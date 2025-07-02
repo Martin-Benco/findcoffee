@@ -27,7 +27,7 @@ class _QuickSizeTestState extends State<QuickSizeTest> {
     try {
       final marker = await BitmapDescriptor.fromAssetImage(
         ImageConfiguration(size: Size(size, size)),
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
       
       setState(() {
