@@ -24,6 +24,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
+import 'widgets/cafe_info_bottom_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -481,6 +482,8 @@ class _HomePageState extends State<HomePage> {
   double? _selectedMinRating;
   double? _selectedMaxDistance;
   Set<FilterFeatures> _selectedFeatures = {};
+  Cafe? _selectedCafe;
+  bool _showCafeSheet = false;
 
   @override
   void initState() {
@@ -832,17 +835,30 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _onCafeSelected(Cafe cafe) {
+    setState(() {
+      _selectedCafe = cafe;
+      _showCafeSheet = true;
+    });
+  }
+
+  void _closeCafeSheet() {
+    setState(() {
+      _showCafeSheet = false;
+      _selectedCafe = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () {
-        _searchFocusNode.unfocus();
-      },
-      child: Stack(
-        children: [
-          // Mapa je vždy na pozadí
-          _MapView(currentPosition: _currentPosition, cafes: _cafes),
+    return Stack(
+      children: [
+        _MapView(
+          currentPosition: _currentPosition,
+          cafes: _cafes,
+          onCafeSelected: _onCafeSelected,
+        ),
+        if (!_showCafeSheet) ...[
           // Menu button
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
@@ -1158,7 +1174,23 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ],
-      ),
+        if (_showCafeSheet && _selectedCafe != null)
+          GestureDetector(
+            onTap: _closeCafeSheet,
+            child: Container(
+              color: Colors.black.withOpacity(0.2),
+              width: double.infinity,
+              height: double.infinity,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: FractionallySizedBox(
+                  heightFactor: 0.5,
+                  child: CafeInfoBottomSheet(cafe: _selectedCafe!),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1284,7 +1316,8 @@ class _CafeListItem extends StatelessWidget {
 class _MapView extends StatefulWidget {
   final Position? currentPosition;
   final List<Cafe> cafes;
-  const _MapView({this.currentPosition, required this.cafes});
+  final void Function(Cafe)? onCafeSelected;
+  const _MapView({this.currentPosition, required this.cafes, this.onCafeSelected});
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -1373,6 +1406,11 @@ class _MapViewState extends State<_MapView> {
           position: LatLng(cafe.latitude, cafe.longitude),
           icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
           infoWindow: InfoWindow(title: cafe.name),
+          onTap: () {
+            if (widget.onCafeSelected != null) {
+              widget.onCafeSelected!(cafe);
+            }
+          },
         );
       }).toSet();
     });
