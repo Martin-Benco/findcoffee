@@ -40,7 +40,7 @@ class _MapViewState extends State<_MapView> {
     try {
       _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(48, 48)),
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
       _updateMarkers();
     } catch (e) {
@@ -74,7 +74,7 @@ Future<BitmapDescriptor> loadCustomMarkerWithSize(double size) async {
   try {
     return await BitmapDescriptor.fromAssetImage(
       ImageConfiguration(size: Size(size, size)),
-      'assets/icons/kavMapIcon.png',
+      'assets/icons/kavamark.png',
     );
   } catch (e) {
     return BitmapDescriptor.defaultMarker;

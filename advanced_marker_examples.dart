@@ -37,7 +37,7 @@ class AdvancedMarkerManager {
   /// Načíta všetky potrebné markery vopred
   static Future<void> preloadMarkers() async {
     final markers = [
-      'assets/icons/kavMapIcon.png',
+      'assets/icons/kavamark.png',
       // Pridajte ďalšie cesty k markerom podľa potreby
     ];
     
@@ -54,21 +54,21 @@ class SmartMarkerFactory {
   static Future<BitmapDescriptor> getRatingBasedMarker(double rating) async {
     if (rating >= 4.5) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 56, // Väčší marker pre vysoké hodnotenie
       );
     } else if (rating >= 4.0) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 48,
       );
     } else if (rating >= 3.0) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 40, // Menší marker pre nižšie hodnotenie
       );
     } else {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.red);
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
     }
   }
   
@@ -76,21 +76,21 @@ class SmartMarkerFactory {
   static Future<BitmapDescriptor> getDistanceBasedMarker(double distanceKm) async {
     if (distanceKm <= 0.5) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 56, // Veľký marker pre blízke kaviarne
       );
     } else if (distanceKm <= 2.0) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 48,
       );
     } else if (distanceKm <= 5.0) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 40,
       );
     } else {
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.grey);
+      return BitmapDescriptor.defaultMarkerWithHue(210.0); // približná šedá
     }
   }
   
@@ -99,13 +99,13 @@ class SmartMarkerFactory {
     switch (cafeType.toLowerCase()) {
       case 'coffee':
       case 'kaviareň':
-        return await AdvancedMarkerManager.getCachedMarker('assets/icons/kavMapIcon.png');
+        return await AdvancedMarkerManager.getCachedMarker('assets/icons/kavamark.png');
       case 'restaurant':
       case 'reštaurácia':
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.Hue.blue);
+        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
       case 'cafe':
       case 'kaváreň':
-        return await AdvancedMarkerManager.getCachedMarker('assets/icons/kavMapIcon.png');
+        return await AdvancedMarkerManager.getCachedMarker('assets/icons/kavamark.png');
       default:
         return BitmapDescriptor.defaultMarker;
     }
@@ -120,7 +120,7 @@ class SmartMarkerFactory {
     // Priorita 1: Vysoké hodnotenie
     if (rating >= 4.5) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 56,
       );
     }
@@ -128,7 +128,7 @@ class SmartMarkerFactory {
     // Priorita 2: Blízka vzdialenosť
     if (distanceKm <= 0.5) {
       return await AdvancedMarkerManager.getCachedMarker(
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
         size: 52,
       );
     }
@@ -139,7 +139,7 @@ class SmartMarkerFactory {
     }
     
     // Fallback
-    return await AdvancedMarkerManager.getCachedMarker('assets/icons/kavMapIcon.png');
+    return await AdvancedMarkerManager.getCachedMarker('assets/icons/kavamark.png');
   }
 }
 

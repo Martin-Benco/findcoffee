@@ -1,159 +1,136 @@
 import 'package:flutter/material.dart';
 import '../core/models.dart';
-import '../core/firebase_service.dart';
+import 'cafe_detail_page.dart';
 
-class CafeInfoBottomSheet extends StatelessWidget {
+class CafeInfoBottomSheet extends StatefulWidget {
   final Cafe cafe;
-  const CafeInfoBottomSheet({Key? key, required this.cafe}) : super(key: key);
+  final VoidCallback? onClose;
+  const CafeInfoBottomSheet({Key? key, required this.cafe, this.onClose}) : super(key: key);
 
-  String _getTodayKey() {
-    final now = DateTime.now();
-    switch (now.weekday) {
-      case DateTime.monday:
-        return 'Po';
-      case DateTime.tuesday:
-        return 'Ut';
-      case DateTime.wednesday:
-        return 'St';
-      case DateTime.thursday:
-        return 'Št';
-      case DateTime.friday:
-        return 'Pi';
-      case DateTime.saturday:
-        return 'So';
-      case DateTime.sunday:
-        return 'Ne';
-      default:
-        return '';
-    }
+  @override
+  State<CafeInfoBottomSheet> createState() => _CafeInfoBottomSheetState();
+}
+
+class _CafeInfoBottomSheetState extends State<CafeInfoBottomSheet> with TickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _heightAnimation;
+  late Animation<double> _opacityAnimation;
+  bool _isExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    
+    _heightAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    _opacityAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
+    ));
+    
+    _animationController.forward();
   }
 
-  bool _isOpenNow(String hours) {
-    if (hours.toLowerCase().contains('zatvor')) return false;
-    final now = TimeOfDay.now();
-    final parts = hours.split('–');
-    if (parts.length != 2) return true;
-    final start = parts[0].trim();
-    final end = parts[1].trim();
-    TimeOfDay? startTime = _parseTime(start);
-    TimeOfDay? endTime = _parseTime(end);
-    if (startTime == null || endTime == null) return true;
-    final nowMinutes = now.hour * 60 + now.minute;
-    final startMinutes = startTime.hour * 60 + startTime.minute;
-    final endMinutes = endTime.hour * 60 + endTime.minute;
-    return nowMinutes >= startMinutes && nowMinutes <= endMinutes;
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
-  TimeOfDay? _parseTime(String str) {
-    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(str);
-    if (match == null) return null;
-    return TimeOfDay(hour: int.parse(match.group(1)!), minute: int.parse(match.group(2)!));
+  void _expandToFullScreen() {
+    setState(() {
+      _isExpanded = true;
+    });
+    
+    // Navigate to full screen
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => CafeDetailPage(
+          cafe: widget.cafe,
+          isPreviewMode: false,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    ).then((_) {
+      // Reset state when returning from full screen
+      setState(() {
+        _isExpanded = false;
+      });
+    });
+  }
+
+  void _closeSheet() {
+    _animationController.reverse().then((_) {
+      if (mounted) {
+        if (widget.onClose != null) {
+          widget.onClose!();
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final firebaseService = FirebaseService();
-    final todayKey = _getTodayKey();
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, -2),
-          ),
-        ],
-      ),
-      child: FutureBuilder<List<OpeningHours>>(
-        future: firebaseService.getOpeningHours(cafe.id),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final hoursList = snapshot.data!;
-          final today = hoursList.firstWhere(
-            (h) => h.den == todayKey,
-            orElse: () => OpeningHours(den: todayKey, hodiny: 'Neznáme'),
-          );
-          final isOpen = _isOpenNow(today.hodiny);
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(20),
-                ),
-                child: Image.network(
-                  cafe.foto_url,
-                  width: double.infinity,
-                  height: 160,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    height: 160,
-                    color: Colors.grey[300],
-                    child: const Center(child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey)),
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, (1 - _heightAnimation.value) * 100),
+          child: Opacity(
+            opacity: _opacityAnimation.value,
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.4,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: Offset(0, -2),
                   ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: CafeDetailPage(
+                  cafe: widget.cafe,
+                  isPreviewMode: true,
+                  onExpand: _expandToFullScreen,
+                  onClose: _closeSheet,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      cafe.name,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          isOpen ? Icons.check_circle : Icons.cancel,
-                          color: isOpen ? Colors.green : Colors.red,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isOpen ? 'Otvorené' : 'Zatvorené',
-                          style: TextStyle(
-                            color: isOpen ? Colors.green : Colors.red,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Dnešné otváracie hodiny:',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    Text(
-                      today.hodiny,
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.amber, size: 22),
-                        const SizedBox(width: 4),
-                        Text(
-                          cafe.rating.toStringAsFixed(1),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 } 

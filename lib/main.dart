@@ -843,10 +843,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _closeCafeSheet() {
-    setState(() {
-      _showCafeSheet = false;
-      _selectedCafe = null;
-    });
+    if (_showCafeSheet) {
+      setState(() {
+        _showCafeSheet = false;
+        _selectedCafe = null;
+      });
+    }
   }
 
   @override
@@ -857,6 +859,7 @@ class _HomePageState extends State<HomePage> {
           currentPosition: _currentPosition,
           cafes: _cafes,
           onCafeSelected: _onCafeSelected,
+          onMapTap: _showCafeSheet ? _closeCafeSheet : null,
         ),
         if (!_showCafeSheet) ...[
           // Menu button
@@ -1183,9 +1186,9 @@ class _HomePageState extends State<HomePage> {
               height: double.infinity,
               child: Align(
                 alignment: Alignment.bottomCenter,
-                child: FractionallySizedBox(
-                  heightFactor: 0.5,
-                  child: CafeInfoBottomSheet(cafe: _selectedCafe!),
+                child: CafeInfoBottomSheet(
+                  cafe: _selectedCafe!,
+                  onClose: _closeCafeSheet,
                 ),
               ),
             ),
@@ -1317,7 +1320,13 @@ class _MapView extends StatefulWidget {
   final Position? currentPosition;
   final List<Cafe> cafes;
   final void Function(Cafe)? onCafeSelected;
-  const _MapView({this.currentPosition, required this.cafes, this.onCafeSelected});
+  final VoidCallback? onMapTap;
+  const _MapView({
+    this.currentPosition, 
+    required this.cafes, 
+    this.onCafeSelected,
+    this.onMapTap,
+  });
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -1356,7 +1365,7 @@ class _MapViewState extends State<_MapView> {
       print('🔄 Načítavam vlastný marker s veľkosťou 96x64...');
       _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(96, 64)), // Nastavené na 96x64
-        'assets/icons/kavMapIcon.png',
+        'assets/icons/kavamark.png',
       );
       print('✅ Vlastný marker úspešne načítaný s veľkosťou 96x64');
       // Po načítaní ikony aktualizujeme markery
@@ -1436,6 +1445,11 @@ class _MapViewState extends State<_MapView> {
               ),
             ),
           );
+        }
+      },
+      onTap: (LatLng position) {
+        if (widget.onMapTap != null) {
+          widget.onMapTap!();
         }
       },
       initialCameraPosition: widget.currentPosition != null

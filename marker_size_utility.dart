@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -108,7 +109,7 @@ class _MarkerSizeTestWidgetState extends State<MarkerSizeTestWidget> {
   Future<void> _loadAllMarkers() async {
     setState(() => _isLoading = true);
     
-    final markers = await MarkerSizeUtility.loadAllSizes('assets/icons/kavMapIcon.png');
+    final markers = await MarkerSizeUtility.loadAllSizes('assets/icons/kavamark.png');
     
     setState(() {
       _markers = markers;

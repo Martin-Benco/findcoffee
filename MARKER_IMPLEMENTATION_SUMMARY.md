@@ -10,7 +10,7 @@
 
 ### 2. Konfigurácia
 - ✅ `pubspec.yaml` už obsahuje `assets/icons/` konfiguráciu
-- ✅ Súbor `kavMapIcon.png` existuje v `assets/icons/`
+- ✅ Súbor `kavamark.png` existuje v `assets/icons/`
 - ✅ Pridané potrebné importy
 
 ### 3. Vytvorené príklady a dokumentácia
@@ -32,7 +32,7 @@ Future<void> _loadCustomMarkerIcon() async {
   try {
     _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
       const ImageConfiguration(size: Size(48, 48)),
-      'assets/icons/kavMapIcon.png',
+      'assets/icons/kavamark.png',
     );
     _updateMarkers();
   } catch (e) {
@@ -76,7 +76,7 @@ void _updateMarkers() {
 
 ### Hlavné súbory:
 - `lib/main.dart` - Hlavná implementácia
-- `assets/icons/kavMapIcon.png` - PNG marker ikona
+- `assets/icons/kavamark.png` - PNG marker ikona
 
 ### Príklady a dokumentácia:
 - `custom_marker_examples.dart` - Základné príklady
