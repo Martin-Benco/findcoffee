@@ -1,0 +1,14 @@
+Zistiť viac o aplikácii Coffit
+
+Coffit je mobilná aplikácia, ktorá vám pomôže objaviť najlepšie kaviarne vo vašom okolí. Využíva údaje o polohe a preferenciách používateľa na zobrazovanie personalizovaných odporúčaní.
+
+Funkcie aplikácie:
+– Interaktívna mapa s kaviarňami
+– Vyhľadávanie a filtrovanie podľa chuti či typu kaviarne
+– Hodnotenia a komentáre používateľov
+– Ukladanie obľúbených miest
+– Zobrazovanie otváracích hodín, Wi-Fi, dostupnosti sedenia a iné
+
+Naším cieľom je zjednodušiť objavovanie kvalitnej kávy v meste.
+
+Aplikácia vznikla ako školský projekt s cieľom prepojiť technológie a zážitok z kávy. Neustále pracujeme na jej vylepšovaní. Ďakujeme, že ste s nami! 

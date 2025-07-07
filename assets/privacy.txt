@@ -1,0 +1,19 @@
+Zásady ochrany osobných údajov
+
+Aplikácia Coffit rešpektuje vaše súkromie. Nezhromažďujeme žiadne citlivé údaje, ktoré by mohli identifikovať konkrétneho používateľa bez jeho výslovného súhlasu.
+
+Aké údaje zhromažďujeme:
+– Informácie o lokalite (iba ak udelíte povolenie)
+– Štatistiky používania aplikácie (napr. počet kliknutí, obľúbené kaviarne)
+– Voliteľne: spätná väzba alebo hodnotenia
+
+Na čo údaje používame:
+– Na zlepšovanie kvality aplikácie a odporúčaní
+– Na anonymnú analýzu používania aplikácie
+
+Vaše údaje nie sú zdieľané s tretími stranami. Bezpečne ich uchovávame v službe Firebase (Google Cloud) s aktívnymi bezpečnostnými pravidlami.
+
+Ovládanie súkromia:
+Používateľ môže kedykoľvek odvolať povolenie na lokalitu alebo vymazať uložené údaje cez nastavenia účtu.
+
+Ďakujeme, že používate Coffit. 

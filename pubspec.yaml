@@ -42,6 +42,7 @@ dependencies:
   firebase_auth: ^5.6.0
   cloud_firestore: ^5.6.9
   shared_preferences: ^2.2.2
+  geocoding: ^2.1.0
 
 dev_dependencies:
   flutter_test:
@@ -70,6 +71,8 @@ flutter:
     - assets/images/
     - assets/images/bg_coffee.png
     - assets/map_style.json
+    - assets/privacy.txt
+    - assets/info.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:

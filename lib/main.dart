@@ -25,6 +25,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'widgets/cafe_info_bottom_sheet.dart';
+import 'widgets/privacy_screen.dart';
+import 'widgets/info_screen.dart';
+import 'package:geocoding/geocoding.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -265,8 +268,6 @@ class _MainNavigationState extends State<MainNavigation> {
     super.initState();
     _loadData();
     
-    // Test menu kaviarne
-    _firebaseService.testCafeMenu('bfJ85NHm98zlLipUroPe');
     _searchFocusNode.addListener(() {
       setState(() {
         _isSearchFocused = _searchFocusNode.hasFocus;
@@ -354,8 +355,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // Vytvoríme pages až po načítaní dát
-    if (_pages.isEmpty && !_isLoadingCafes) {
+    // Vytvoríme pages len raz
+    if (_pages.isEmpty) {
       _pages.addAll([
         HomePage(
           currentPosition: _currentPosition,
@@ -365,6 +366,13 @@ class _MainNavigationState extends State<MainNavigation> {
         FavoritesPage(),
         ProfilePage(),
       ]);
+    } else {
+      // Aktualizujeme HomePage s novými dátami
+      _pages[0] = HomePage(
+        currentPosition: _currentPosition,
+        cafes: _cafes,
+        firebaseService: _firebaseService,
+      );
     }
 
     return Scaffold(
@@ -485,14 +493,22 @@ class _HomePageState extends State<HomePage> {
   Cafe? _selectedCafe;
   bool _showCafeSheet = false;
 
+  String? _currentAddress;
+  String? _selectedCity;
+  bool _isLocationLoading = false;
+  final List<String> _citySuggestions = [
+    'Bratislava', 'Košice', 'Prešov', 'Žilina', 'Nitra',
+    'Banská Bystrica', 'Trnava', 'Trenčín', 'Martin', 'Poprad',
+    'Senica', 'Bardejov', 'Liptovský Mikuláš', 'Dunajská Streda',
+  ];
+
   @override
   void initState() {
     super.initState();
-    _currentPosition = widget.currentPosition;
     _cafes = widget.cafes;
+    _currentPosition = widget.currentPosition;
+    _fetchCurrentLocationAndAddress();
     
-    // Test menu kaviarne
-    widget.firebaseService.testCafeMenu('bfJ85NHm98zlLipUroPe');
     _searchFocusNode.addListener(_onSearchFocusChange);
   }
 
@@ -851,6 +867,90 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _fetchCurrentLocationAndAddress() async {
+    setState(() { _isLocationLoading = true; });
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (!serviceEnabled ||
+          permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        setState(() {
+          _currentAddress = null;
+          _isLocationLoading = false;
+        });
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude, localeIdentifier: 'sk');
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        setState(() {
+          _currentAddress = '${p.locality ?? ''}${p.locality != null && p.street != null ? ', ' : ''}${p.street ?? ''}${p.subThoroughfare != null ? ' ${p.subThoroughfare}' : ''}';
+          _selectedCity = p.locality;
+          _isLocationLoading = false;
+        });
+      } else {
+        setState(() {
+          _currentAddress = null;
+          _isLocationLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _currentAddress = null;
+        _isLocationLoading = false;
+      });
+    }
+  }
+
+  void _showLocationPicker() async {
+    String? result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _LocationPickerSheet(
+        citySuggestions: _citySuggestions,
+        onCitySelected: (city) => Navigator.of(context).pop(city),
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      _moveToCity(result);
+    }
+  }
+
+  Future<void> _moveToCity(String city) async {
+    try {
+      List<Location> locations = await locationFromAddress(city + ', Slovakia');
+      if (locations.isNotEmpty) {
+        final loc = locations.first;
+        setState(() {
+          _selectedCity = city;
+          _currentAddress = city;
+          _currentPosition = Position(
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            timestamp: DateTime.now(),
+            accuracy: 1.0,
+            altitude: 0.0,
+            heading: 0.0,
+            speed: 0.0,
+            speedAccuracy: 0.0,
+            altitudeAccuracy: 1.0,
+            headingAccuracy: 1.0,
+          );
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nepodarilo sa nájsť mesto: $city')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -866,26 +966,35 @@ class _HomePageState extends State<HomePage> {
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    spreadRadius: 1,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: SvgPicture.asset(
-                  'assets/icons/ciernemenu.svg',
-                  width: 24,
-                  height: 24,
+            child: GestureDetector(
+              onTap: _showLocationPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_on_outlined, color: AppColors.primary, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isLocationLoading
+                        ? 'Načítavam...'
+                        : (_currentAddress ?? _selectedCity ?? 'Zvoľte mesto'),
+                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 16),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 20),
+                  ],
                 ),
               ),
             ),
@@ -1380,13 +1489,151 @@ class _MapViewState extends State<_MapView> {
 
   Future<void> _loadMapStyle() async {
     try {
+      print('🔄 Načítavam mapový štýl...');
       final styleString = await rootBundle.loadString('assets/map_style.json');
+      print('✅ Mapový štýl načítaný: ${styleString.length} znakov');
+      print('📄 Obsah štýlu: $styleString');
       setState(() {
         _mapStyle = styleString;
       });
     } catch (e) {
-      print('Chyba pri načítaní mapového štýlu: $e');
+      print('❌ Chyba pri načítaní mapového štýlu: $e');
     }
+  }
+
+  /// Alternatívna metóda - mapový štýl definovaný priamo v kóde
+  /// Použite túto metódu, ak chcete mať mapový štýl priamo v kóde namiesto JSON súboru
+  String _getMapStyleString() {
+    return '''
+[
+  {
+    "featureType": "poi.cafe",
+    "elementType": "all",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.restaurant",
+    "elementType": "all",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "landscape",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "landscape.man_made",
+    "elementType": "all",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "landscape.natural",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road.arterial",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road.local",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.neighborhood",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  }
+]
+''';
   }
 
   @override
@@ -1433,7 +1680,11 @@ class _MapViewState extends State<_MapView> {
         
         // Aplikovanie mapového štýlu
         if (_mapStyle != null) {
+          print('🎨 Aplikujem mapový štýl...');
           controller.setMapStyle(_mapStyle!);
+          print('✅ Mapový štýl aplikovaný');
+        } else {
+          print('⚠️ Mapový štýl nie je načítaný');
         }
         
         if (widget.currentPosition != null) {
@@ -1549,7 +1800,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         ? 'Bolo to skvelé!!!'
                         : fav.name == 'Pauza Coffee and Cake'
                             ? 'Super preso.'
-                            : 'Bola som tu v...';
+                            : 'Bola som tu včera.';
                     final rating = fav.name == 'Saint Coffee'
                         ? 4.7
                         : fav.name == 'Pauza Coffee and Cake'
@@ -2011,13 +2262,21 @@ class _ProfilePageState extends State<ProfilePage> {
               const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 16),
               _ProfileRow(
-                icon: Container(width: 28, height: 28, color: Colors.black12),
+                icon: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: SvgPicture.asset('assets/icons/userEmpty.svg'),
+                ),
                 text: (_userName.isEmpty || _userName == 'Používateľ') ? 'Nastaviť meno' : _userName,
                 onEdit: _editName,
               ),
               const SizedBox(height: 8),
               _ProfileRow(
-                icon: Container(width: 28, height: 28, color: Colors.black12),
+                icon: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: SvgPicture.asset('assets/icons/mail.svg'),
+                ),
                 text: email,
                 onEdit: () {},
                 showEdit: true,
@@ -2058,9 +2317,16 @@ class _ProfilePageState extends State<ProfilePage> {
                 icon: SizedBox(
                   width: 28,
                   height: 28,
-                  child: SvgPicture.asset('assets/icons/infoIcon.svg'),
-                ), 
-                text: 'Súkromie'
+                  child: SvgPicture.asset('assets/icons/sukromieIcon.svg'),
+                ),
+                text: 'Súkromie',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const PrivacyScreen(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 24),
               const Text('Iné', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
@@ -2071,7 +2337,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   height: 28,
                   child: SvgPicture.asset('assets/icons/infoIcon.svg'),
                 ), 
-                text: 'Zistiť viac'
+                text: 'Zistiť viac',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const InfoScreen(),
+                    ),
+                  );
+                },
               ),
               const Divider(),
               GestureDetector(
@@ -2335,5 +2608,94 @@ class _SimpleRow extends StatelessWidget {
     } else {
       return row;
     }
+  }
+}
+
+// Vytvorím nový widget _LocationPickerSheet
+class _LocationPickerSheet extends StatefulWidget {
+  final List<String> citySuggestions;
+  final ValueChanged<String> onCitySelected;
+  const _LocationPickerSheet({required this.citySuggestions, required this.onCitySelected});
+
+  @override
+  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
+}
+
+class _LocationPickerSheetState extends State<_LocationPickerSheet> {
+  String _search = '';
+  late List<String> _filteredCities;
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredCities = widget.citySuggestions;
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _search = value;
+      _filteredCities = widget.citySuggestions
+          .where((city) => city.toLowerCase().contains(_search.toLowerCase()))
+          .toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        left: 16, right: 16, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.grey,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Text('Kde chceš piť?', style: TextStyle(color: AppColors.primary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          TextField(
+            autofocus: true,
+            style: TextStyle(color: AppColors.primary),
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search, color: AppColors.primary),
+              hintText: 'Zadaj lokalitu',
+              hintStyle: TextStyle(color: AppColors.textSecondary),
+              filled: true,
+              fillColor: AppColors.grey,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+            ),
+            onChanged: _onSearchChanged,
+            onSubmitted: (value) {
+              if (value.isNotEmpty) widget.onCitySelected(value);
+            },
+          ),
+          const SizedBox(height: 16),
+          ..._filteredCities.take(8).map((city) => ListTile(
+                leading: Icon(Icons.location_on_outlined, color: AppColors.primary),
+                title: Text(city, style: TextStyle(color: AppColors.primary)),
+                onTap: () => widget.onCitySelected(city),
+              )),
+        ],
+      ),
+    );
   }
 }
