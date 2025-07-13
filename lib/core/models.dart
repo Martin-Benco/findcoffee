@@ -8,12 +8,18 @@ class FavoriteItem {
   final String id; // pre kaviareň: meno, pre drink/food: meno
   final String name;
   final String? imageUrl;
+  final String? note;
+  final String? address; // adresa kaviarne
+  final DateTime? savedAt; // dátum uloženia
 
   FavoriteItem({
     required this.type,
     required this.id,
     required this.name,
     this.imageUrl,
+    this.note,
+    this.address,
+    this.savedAt,
   });
 
   Map<String, dynamic> toJson() => {
@@ -21,6 +27,9 @@ class FavoriteItem {
     'id': id,
     'name': name,
     'imageUrl': imageUrl,
+    'note': note,
+    'address': address,
+    'savedAt': savedAt?.toIso8601String(),
   };
 
   static FavoriteItem fromJson(Map<String, dynamic> json) => FavoriteItem(
@@ -28,6 +37,9 @@ class FavoriteItem {
     id: json['id'],
     name: json['name'],
     imageUrl: json['imageUrl'],
+    note: json['note'],
+    address: json['address'],
+    savedAt: json['savedAt'] != null ? DateTime.parse(json['savedAt']) : null,
   );
 }
 
@@ -48,6 +60,7 @@ class Cafe {
   final bool isFavorite;
   final double latitude;
   final double longitude;
+  final String? address; // adresa kaviarne
 
   Cafe({
     required this.id,
@@ -58,6 +71,7 @@ class Cafe {
     this.isFavorite = false,
     required this.latitude,
     required this.longitude,
+    this.address,
   });
 }
 

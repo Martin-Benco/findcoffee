@@ -3,6 +3,7 @@ import '../core/models.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_colors.dart';
 import '../core/firebase_service.dart';
+import '../core/utils.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'cafe_detail_page.dart';
 
@@ -47,6 +48,7 @@ class _CafeCarouselState extends State<CafeCarousel> {
         id: cafe.id,
         name: cafe.name,
         imageUrl: cafe.foto_url,
+        address: cafe.address,
       );
 
       if (_favoriteCafes.contains(cafe.id)) {
@@ -70,15 +72,18 @@ class _CafeCarouselState extends State<CafeCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    // Zobrazíme len najbližších 15 kaviarní
+    final limitedCafes = widget.cafes.take(15).toList();
+    
     return SizedBox(
       height: widget.itemHeight + 80,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: widget.cafes.length,
+        itemCount: limitedCafes.length,
         separatorBuilder: (_, __) => const SizedBox(width: 16),
         itemBuilder: (context, i) {
-          final cafe = widget.cafes[i];
+          final cafe = limitedCafes[i];
           return GestureDetector(
             onTap: () {
               Navigator.of(context).push(
@@ -140,7 +145,7 @@ class _CafeCarouselState extends State<CafeCarousel> {
                             ),
                           ),
                           Text(
-                            '${cafe.distanceKm.toStringAsFixed(1)} km',
+                            AppUtils.formatDistance(cafe.distanceKm),
                             style: AppTextStyles.regular12,
                           ),
                         ],

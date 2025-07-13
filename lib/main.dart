@@ -28,6 +28,7 @@ import 'widgets/cafe_info_bottom_sheet.dart';
 import 'widgets/privacy_screen.dart';
 import 'widgets/info_screen.dart';
 import 'package:geocoding/geocoding.dart';
+import 'core/utils.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -458,6 +459,7 @@ class _HomePageState extends State<HomePage> {
   final DraggableScrollableController _sheetController = DraggableScrollableController();
   final FocusNode _searchFocusNode = FocusNode();
   bool _isSearchFocused = false;
+  double _sheetExtent = 0.75; // Pridám premennú na sledovanie pozície sheetu
   
   // Mock dáta pre nápoje a jedlá (zatiaľ)
   final List<Drink> _drinks = const [
@@ -677,6 +679,7 @@ class _HomePageState extends State<HomePage> {
       _filteredCafes.clear();
       _selectedDrink = null;
       _selectedFood = null;
+      _sheetExtent = 0.75; // Resetujem pozíciu na default
       FocusScope.of(context).unfocus();
     });
   }
@@ -725,14 +728,16 @@ class _HomePageState extends State<HomePage> {
             ? HomeMode.searchMap
             : HomeMode.search;
 
-    if (newMode != _mode) {
-      setState(() {
+    setState(() {
+      _sheetExtent = extent; // Aktualizujem pozíciu sheetu
+      
+      if (newMode != _mode) {
         if (_mode == HomeMode.search && newMode != HomeMode.search) {
           FocusScope.of(context).unfocus();
         }
         _mode = newMode;
-      });
-    }
+      }
+    });
   }
 
   void _applyFiltersAndOpenSearch(Map<String, dynamic> filters) {
@@ -758,6 +763,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _mode = HomeMode.search;
         _isFiltered = true;
+        _sheetExtent = 1.0; // Aktualizujem pozíciu pre search mode
       });
     }
   }
@@ -844,10 +850,14 @@ class _HomePageState extends State<HomePage> {
     if (_isSearchFocused && !wasFocused) {
       _mode = HomeMode.search;
       _animateSheetToSearch();
-      setState(() {});
+      setState(() {
+        _sheetExtent = 1.0; // Aktualizujem pozíciu pre search mode
+      });
     } else if (!_isSearchFocused && wasFocused) {
       _mode = HomeMode.map;
-      setState(() {});
+      setState(() {
+        _sheetExtent = 0.75; // Resetujem pozíciu na default
+      });
     }
   }
 
@@ -960,6 +970,7 @@ class _HomePageState extends State<HomePage> {
           cafes: _cafes,
           onCafeSelected: _onCafeSelected,
           onMapTap: _showCafeSheet ? _closeCafeSheet : null,
+          sheetExtent: _sheetExtent, // cca výška search baru
         ),
         if (!_showCafeSheet) ...[
           // Menu button
@@ -969,14 +980,14 @@ class _HomePageState extends State<HomePage> {
             child: GestureDetector(
               onTap: _showLocationPicker,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(24),
+                  color: AppColors.background.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.black.withOpacity(0.1),
-                      blurRadius: 8,
+                      color: AppColors.black.withOpacity(0.08),
+                      blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
                   ],
@@ -984,16 +995,16 @@ class _HomePageState extends State<HomePage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.location_on_outlined, color: AppColors.primary, size: 22),
-                    const SizedBox(width: 8),
+                    Icon(Icons.location_on_outlined, color: Colors.black, size: 18),
+                    const SizedBox(width: 6),
                     Text(
                       _isLocationLoading
                         ? 'Načítavam...'
                         : (_currentAddress ?? _selectedCity ?? 'Zvoľte mesto'),
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 16),
+                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w400, fontSize: 12.36), // Tenký text ako v navigácii
                     ),
                     const SizedBox(width: 4),
-                    Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 20),
+                    Icon(Icons.keyboard_arrow_down, color: Colors.black, size: 16),
                   ],
                 ),
               ),
@@ -1001,7 +1012,7 @@ class _HomePageState extends State<HomePage> {
           ),
           DraggableScrollableSheet(
             controller: _sheetController,
-            initialChildSize: 0.75, // cca výška search baru
+            initialChildSize: _sheetExtent, // cca výška search baru
             minChildSize: 0.15,
             maxChildSize: 1.0,
             snap: true,
@@ -1015,7 +1026,7 @@ class _HomePageState extends State<HomePage> {
                 child: Container(
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(0)), // Odstránený horný radius
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black12,
@@ -1027,8 +1038,24 @@ class _HomePageState extends State<HomePage> {
                   child: ListView(
                     controller: scrollController,
                     children: [
-                      const SizedBox(height: 12),
-                      const SizedBox(height: 16),
+                      AnimatedOpacity(
+                        opacity: _mode == HomeMode.search ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.ease,
+                        child: Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 8, top: 4), // Zmenšené medzery
+                            decoration: BoxDecoration(
+                              color: Colors.black26,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8), // Zmenšená medzera
+                      const SizedBox(height: 8), // Zmenšená medzera
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Row(
@@ -1367,7 +1394,7 @@ class _CafeListItem extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${cafe.distanceKm.toStringAsFixed(1)} km',
+                            AppUtils.formatDistance(cafe.distanceKm),
                             style: AppTextStyles.regular12,
                           ),
                         ],
@@ -1422,305 +1449,6 @@ class _CafeListItem extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _MapView extends StatefulWidget {
-  final Position? currentPosition;
-  final List<Cafe> cafes;
-  final void Function(Cafe)? onCafeSelected;
-  final VoidCallback? onMapTap;
-  const _MapView({
-    this.currentPosition, 
-    required this.cafes, 
-    this.onCafeSelected,
-    this.onMapTap,
-  });
-
-  @override
-  State<_MapView> createState() => _MapViewState();
-}
-
-class _MapViewState extends State<_MapView> {
-  GoogleMapController? _mapController;
-  Set<Marker> _markers = {};
-  String? _mapStyle;
-  BitmapDescriptor? _customMarkerIcon;
-
-  static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(48.1486, 17.1077),
-    zoom: 15.0,
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCustomMarkerIcon();
-    _loadMapStyle();
-  }
-
-  /// Vynuluje cache a znovu načíta marker
-  void _reloadMarker() {
-    print('🔄 Vynulujem cache a znovu načítavam marker...');
-    setState(() {
-      _customMarkerIcon = null;
-    });
-    _loadCustomMarkerIcon();
-  }
-
-  /// Načíta vlastný PNG marker z assetov
-  Future<void> _loadCustomMarkerIcon() async {
-    try {
-      print('🔄 Načítavam vlastný marker s veľkosťou 96x64...');
-      _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(96, 64)), // Nastavené na 96x64
-        'assets/icons/kavamark.png',
-      );
-      print('✅ Vlastný marker úspešne načítaný s veľkosťou 96x64');
-      // Po načítaní ikony aktualizujeme markery
-      _updateMarkers();
-    } catch (e) {
-      print('❌ Chyba pri načítaní vlastného marker ikony: $e');
-      // Ak sa načítanie nezdaří, použijeme štandardný marker
-      _customMarkerIcon = BitmapDescriptor.defaultMarker;
-      _updateMarkers();
-    }
-  }
-
-  Future<void> _loadMapStyle() async {
-    try {
-      print('🔄 Načítavam mapový štýl...');
-      final styleString = await rootBundle.loadString('assets/map_style.json');
-      print('✅ Mapový štýl načítaný: ${styleString.length} znakov');
-      print('📄 Obsah štýlu: $styleString');
-      setState(() {
-        _mapStyle = styleString;
-      });
-    } catch (e) {
-      print('❌ Chyba pri načítaní mapového štýlu: $e');
-    }
-  }
-
-  /// Alternatívna metóda - mapový štýl definovaný priamo v kóde
-  /// Použite túto metódu, ak chcete mať mapový štýl priamo v kóde namiesto JSON súboru
-  String _getMapStyleString() {
-    return '''
-[
-  {
-    "featureType": "poi.cafe",
-    "elementType": "all",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "poi.restaurant",
-    "elementType": "all",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "transit",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "landscape",
-    "elementType": "labels",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "landscape.man_made",
-    "elementType": "all",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "landscape.natural",
-    "elementType": "labels",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "road",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "road.highway",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "road.arterial",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "road.local",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "administrative",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "administrative.locality",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "administrative.neighborhood",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  },
-  {
-    "featureType": "water",
-    "elementType": "labels.icon",
-    "stylers": [
-      {
-        "visibility": "off"
-      }
-    ]
-  }
-]
-''';
-  }
-
-  @override
-  void didUpdateWidget(covariant _MapView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.cafes != oldWidget.cafes) {
-      _updateMarkers();
-    }
-    if (widget.currentPosition != null && widget.currentPosition != oldWidget.currentPosition) {
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
-            zoom: 15.0,
-          ),
-        ),
-      );
-    }
-  }
-
-  void _updateMarkers() {
-    setState(() {
-      _markers = widget.cafes.map((cafe) {
-        return Marker(
-          markerId: MarkerId(cafe.id),
-          position: LatLng(cafe.latitude, cafe.longitude),
-          icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
-          infoWindow: InfoWindow(title: cafe.name),
-          onTap: () {
-            if (widget.onCafeSelected != null) {
-              widget.onCafeSelected!(cafe);
-            }
-          },
-        );
-      }).toSet();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GoogleMap(
-      onMapCreated: (GoogleMapController controller) {
-        _mapController = controller;
-        
-        // Aplikovanie mapového štýlu
-        if (_mapStyle != null) {
-          print('🎨 Aplikujem mapový štýl...');
-          controller.setMapStyle(_mapStyle!);
-          print('✅ Mapový štýl aplikovaný');
-        } else {
-          print('⚠️ Mapový štýl nie je načítaný');
-        }
-        
-        if (widget.currentPosition != null) {
-          controller.animateCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(
-                target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
-                zoom: 15.0,
-              ),
-            ),
-          );
-        }
-      },
-      onTap: (LatLng position) {
-        if (widget.onMapTap != null) {
-          widget.onMapTap!();
-        }
-      },
-      initialCameraPosition: widget.currentPosition != null
-          ? CameraPosition(
-              target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
-              zoom: 15.0,
-            )
-          : _initialPosition,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      zoomControlsEnabled: false,
-      mapToolbarEnabled: false,
-      markers: _markers,
-    );
-  }
-
-  @override
-  void dispose() {
-    _mapController?.dispose();
-    super.dispose();
   }
 }
 
@@ -1785,35 +1513,74 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, i) {
                     final fav = favorites[i];
-                    // Mock data pre ukážku (adresu, dátum, hodnotenie, recenziu)
-                    final address = fav.name == 'Saint Coffee'
-                        ? '6 Apr – Prešov, Luthanskeho 18'
-                        : fav.name == 'Pauza Coffee and Cake'
-                            ? '8 Apr – Prešov, Popradska 2'
-                            : '2 Apr – Prešov, Jogurskeho 15';
-                    final date = fav.name == 'Saint Coffee'
-                        ? '21 May, 2025'
-                        : fav.name == 'Pauza Coffee and Cake'
-                            ? '5 April, 2025'
-                            : '1 Jun, 2025';
-                    final review = fav.name == 'Saint Coffee'
-                        ? 'Bolo to skvelé!!!'
-                        : fav.name == 'Pauza Coffee and Cake'
-                            ? 'Super preso.'
-                            : 'Bola som tu včera.';
-                    final rating = fav.name == 'Saint Coffee'
-                        ? 4.7
-                        : fav.name == 'Pauza Coffee and Cake'
-                            ? 4.9
-                            : 4.5;
-                    return _FavoriteCafeItem(
-                      imageUrl: fav.imageUrl,
-                      name: fav.name,
-                      address: address,
-                      date: date,
-                      review: review,
-                      rating: rating,
-                      cafeId: fav.id, // id je Firestore ID kaviarne
+                    return FutureBuilder<Cafe?>(
+                      future: _firebaseService.getCafeById(fav.id),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final cafe = snapshot.data;
+                        Future<String> getAddress() async {
+                          if (cafe != null && cafe.address != null && cafe.address!.trim().isNotEmpty) {
+                            return cafe.address!;
+                          }
+                          if (fav.address != null && fav.address!.trim().isNotEmpty) {
+                            return fav.address!;
+                          }
+                          if (cafe != null) {
+                            try {
+                              final placemarks = await placemarkFromCoordinates(cafe.latitude, cafe.longitude, localeIdentifier: 'sk');
+                              if (placemarks.isNotEmpty) {
+                                final p = placemarks.first;
+                                String street = p.street ?? '';
+                                String number = p.subThoroughfare ?? '';
+                                String result = street;
+                                if (street.isNotEmpty && number.isNotEmpty) {
+                                  result = '$street $number';
+                                } else if (street.isEmpty && number.isNotEmpty) {
+                                  result = number;
+                                }
+                                return result.isNotEmpty ? result : 'Adresa nie je dostupná';
+                              }
+                            } catch (e) {
+                              // ignore
+                            }
+                          }
+                          return 'Adresa nie je dostupná';
+                        }
+                        return FutureBuilder<String>(
+                          future: getAddress(),
+                          builder: (context, addressSnapshot) {
+                            final address = addressSnapshot.data ?? 'Adresa nie je dostupná';
+                            // Formátujeme dátum uloženia
+                            String formattedDate = 'Neznámy dátum';
+                            if (fav.savedAt != null) {
+                              final now = DateTime.now();
+                              final savedDate = fav.savedAt!;
+                              final difference = now.difference(savedDate);
+                              if (difference.inDays == 0) {
+                                formattedDate = 'Dnes';
+                              } else if (difference.inDays == 1) {
+                                formattedDate = 'Včera';
+                              } else if (difference.inDays < 7) {
+                                formattedDate = 'Pred ${difference.inDays} dňami';
+                              } else {
+                                formattedDate = '${savedDate.day}. ${_getMonthName(savedDate.month)}';
+                              }
+                            }
+                            return _FavoriteCafeItem(
+                              imageUrl: fav.imageUrl,
+                              name: fav.name,
+                              address: address,
+                              date: formattedDate,
+                              review: null,
+                              rating: cafe?.rating ?? 0.0,
+                              cafeId: fav.id,
+                              note: fav.note,
+                            );
+                          },
+                        );
+                      },
                     );
                   },
                 );
@@ -1824,6 +1591,24 @@ class _FavoritesPageState extends State<FavoritesPage> {
       ),
     );
   }
+
+  String _getMonthName(int month) {
+    switch (month) {
+      case 1: return 'január';
+      case 2: return 'február';
+      case 3: return 'marec';
+      case 4: return 'apríl';
+      case 5: return 'máj';
+      case 6: return 'jún';
+      case 7: return 'júl';
+      case 8: return 'august';
+      case 9: return 'september';
+      case 10: return 'október';
+      case 11: return 'november';
+      case 12: return 'december';
+      default: return 'mesiac';
+    }
+  }
 }
 
 class _FavoriteCafeItem extends StatelessWidget {
@@ -1831,10 +1616,11 @@ class _FavoriteCafeItem extends StatelessWidget {
   final String name;
   final String address;
   final String date;
-  final String review;
+  final String? review;
   final double rating;
   final String? cafeId; // Firestore ID kaviarne
-  const _FavoriteCafeItem({this.imageUrl, required this.name, required this.address, required this.date, required this.review, required this.rating, this.cafeId});
+  final String? note;
+  const _FavoriteCafeItem({this.imageUrl, required this.name, required this.address, required this.date, this.review, required this.rating, this.cafeId, this.note});
 
   bool _isNetworkImage(String? url) {
     return url != null && url.startsWith('http');
@@ -1864,59 +1650,154 @@ class _FavoriteCafeItem extends StatelessWidget {
           },
           child: Padding(
             padding: const EdgeInsets.all(12.0),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Ľavý stĺpec: obrázok, pod ním dátum a poznámka
-                Column(
+                // Horný rad: obrázok + informácie
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Mini obrázok
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: (imageUrl != null && imageUrl!.isNotEmpty && _isNetworkImage(imageUrl))
                           ? Image.network(imageUrl!, width: 54, height: 54, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)))
                           : Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)),
                     ),
-                    const SizedBox(height: 6),
-                    Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    SizedBox(
-                      width: 54,
-                      child: Text(review, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(width: 12),
+                    // Informácie: názov, adresa, recenzie
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Názov a recenzia v jednom riadku
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ),
+                              Row(
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/icons/recenzieHviezdaPlna.svg',
+                                    width: 16,
+                                    height: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFD2691E)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          // Adresa a dátum v jednom riadku
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  (address != null && address.trim().isNotEmpty)
+                                    ? address
+                                    : 'Adresa nie je dostupná',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(width: 12),
-                // Pravý stĺpec: názov a adresa
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 2),
-                      Text(address, style: const TextStyle(color: Colors.black87, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ],
+                // Poznámka na celú šírku
+                if (note != null && note!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      await _showNoteDialog(context, cafeId!, note!);
+                    },
+                    child: Text(
+                      note!,
+                      style: const TextStyle(color: Colors.black87, fontSize: 13),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.star_border, color: Color(0xFFD2691E), size: 22),
-                        const SizedBox(width: 2),
-                        Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFD2691E))),
-                      ],
+                ] else ...[
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      await _showNoteDialog(context, cafeId!, '');
+                    },
+                    child: RichText(
+                      text: const TextSpan(
+                        text: 'Pridať poznámku',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 13,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.black,
+                          decorationThickness: 3.0,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _showNoteDialog(BuildContext context, String cafeId, String initialNote) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _NoteSheet(
+        initialNote: initialNote,
+        onSave: (note) async {
+          final firebaseService = FirebaseService();
+          // Načítaj existujúci FavoriteItem
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final doc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('favorites')
+                .doc(cafeId)
+                .get();
+            if (doc.exists) {
+              final data = doc.data()!;
+              final fav = FavoriteItem.fromJson(data);
+              final updated = FavoriteItem(
+                type: fav.type,
+                id: fav.id,
+                name: fav.name,
+                imageUrl: fav.imageUrl,
+                note: note,
+              );
+              await firebaseService.addToFavorites(updated);
+            }
+          }
+          Navigator.of(context).pop(note);
+        },
+      ),
+    );
+    if (result != null) {
+      // Po uložení sa UI automaticky refreshne cez StreamBuilder
+    }
   }
 }
 
@@ -2256,8 +2137,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 (_userName.isEmpty || _userName == 'Používateľ') ? 'Ahoj!' : 'Ahoj, $_userName', 
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 32)
               ),
-              const SizedBox(height: 4),
-              Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
+              // const SizedBox(height: 4),
+              // Text(email, style: const TextStyle(color: Colors.black54, fontSize: 16)),
               const SizedBox(height: 24),
               const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 16),
@@ -2284,23 +2165,6 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 8),
               const Divider(),
               const SizedBox(height: 18),
-              const Text('Personalizácia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text('Farba', style: TextStyle(fontSize: 16)),
-                  const Spacer(),
-                  Container(
-                    width: 48,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
               const Text('Bezpečnosť', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const SizedBox(height: 12),
               _SimpleRow(
@@ -2666,15 +2530,15 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               ),
             ),
           ),
-          Text('Kde chceš piť?', style: TextStyle(color: AppColors.primary, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Kde chceš piť?', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           TextField(
             autofocus: true,
-            style: TextStyle(color: AppColors.primary),
+            style: TextStyle(color: Colors.black),
             decoration: InputDecoration(
-              prefixIcon: Icon(Icons.search, color: AppColors.primary),
+              prefixIcon: Icon(Icons.search, color: Colors.black),
               hintText: 'Zadaj lokalitu',
-              hintStyle: TextStyle(color: AppColors.textSecondary),
+              hintStyle: TextStyle(color: Colors.grey),
               filled: true,
               fillColor: AppColors.grey,
               border: OutlineInputBorder(
@@ -2690,12 +2554,302 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
           ),
           const SizedBox(height: 16),
           ..._filteredCities.take(8).map((city) => ListTile(
-                leading: Icon(Icons.location_on_outlined, color: AppColors.primary),
-                title: Text(city, style: TextStyle(color: AppColors.primary)),
+                leading: Icon(Icons.location_on_outlined, color: Colors.black),
+                title: Text(city, style: TextStyle(color: Colors.black)),
                 onTap: () => widget.onCitySelected(city),
               )),
         ],
       ),
     );
+  }
+}
+
+// Vytvorím nový widget _NoteSheet
+class _NoteSheet extends StatefulWidget {
+  final String initialNote;
+  final Function(String) onSave;
+  const _NoteSheet({required this.initialNote, required this.onSave});
+
+  @override
+  State<_NoteSheet> createState() => _NoteSheetState();
+}
+
+class _NoteSheetState extends State<_NoteSheet> {
+  late TextEditingController _controller;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialNote);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveNote() async {
+    final note = _controller.text.trim();
+    setState(() => _isLoading = true);
+    
+    try {
+      await widget.onSave(note);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        left: 16, right: 16, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.grey,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Text('Poznámka k obľúbenej kaviarni', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            maxLines: 5,
+            style: TextStyle(color: Colors.black),
+            decoration: InputDecoration(
+              hintText: 'Sem napíš svoju poznámku...',
+              hintStyle: TextStyle(color: Colors.grey),
+              filled: true,
+              fillColor: AppColors.grey,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            ),
+            autofocus: true,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Zrušiť', style: TextStyle(color: Colors.grey)),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _saveNote,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF9C5B43),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text('Uložiť'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapView extends StatefulWidget {
+  final Position? currentPosition;
+  final List<Cafe> cafes;
+  final void Function(Cafe)? onCafeSelected;
+  final VoidCallback? onMapTap;
+  final double sheetExtent;
+  const _MapView({
+    this.currentPosition, 
+    required this.cafes, 
+    this.onCafeSelected,
+    this.onMapTap,
+    required this.sheetExtent,
+  });
+
+  @override
+  State<_MapView> createState() => _MapViewState();
+}
+
+class _MapViewState extends State<_MapView> {
+  GoogleMapController? _mapController;
+  Set<Marker> _markers = {};
+  String? _mapStyle;
+  BitmapDescriptor? _customMarkerIcon;
+
+  static const CameraPosition _initialPosition = CameraPosition(
+    target: LatLng(48.1486, 17.1077),
+    zoom: 15.0,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomMarkerIcon();
+    _loadMapStyle();
+  }
+
+  double get _mapHeight {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final sheetHeight = screenHeight * widget.sheetExtent;
+    final googleLogoPadding = 40.0;
+    final height = screenHeight - sheetHeight + googleLogoPadding;
+    return height < 0 ? 0 : height;
+  }
+
+  LatLng get _mapCenter {
+    if (widget.currentPosition != null) {
+      return LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude);
+    }
+    return _initialPosition.target;
+  }
+
+  Future<void> _loadCustomMarkerIcon() async {
+    try {
+      _customMarkerIcon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(96, 64)),
+        'assets/icons/kavamark.png',
+      );
+      _updateMarkers();
+    } catch (e) {
+      _customMarkerIcon = BitmapDescriptor.defaultMarker;
+      _updateMarkers();
+    }
+  }
+
+  Future<void> _loadMapStyle() async {
+    try {
+      final styleString = await rootBundle.loadString('assets/map_style.json');
+      setState(() {
+        _mapStyle = styleString;
+      });
+    } catch (e) {
+      print('❌ Chyba pri načítaní mapového štýlu: $e');
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.cafes != oldWidget.cafes) {
+      _updateMarkers();
+    }
+    if (widget.currentPosition != null && widget.currentPosition != oldWidget.currentPosition) {
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
+            zoom: 15.0,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _updateMarkers() {
+    setState(() {
+      _markers = widget.cafes.map((cafe) {
+        return Marker(
+          markerId: MarkerId(cafe.id),
+          position: LatLng(cafe.latitude, cafe.longitude),
+          icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
+          infoWindow: InfoWindow(title: cafe.name),
+          onTap: () {
+            if (widget.onCafeSelected != null) {
+              widget.onCafeSelected!(cafe);
+            }
+          },
+        );
+      }).toSet();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.sheetExtent >= 0.99) {
+      return const SizedBox.shrink();
+    }
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      height: _mapHeight,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: 40),
+        child: GoogleMap(
+          onMapCreated: (GoogleMapController controller) {
+            _mapController = controller;
+            
+            if (_mapStyle != null) {
+              controller.setMapStyle(_mapStyle!);
+            }
+            
+            if (widget.currentPosition != null) {
+              controller.animateCamera(
+                CameraUpdate.newCameraPosition(
+                  CameraPosition(
+                    target: _mapCenter,
+                    zoom: 15.0,
+                  ),
+                ),
+              );
+            }
+          },
+          onTap: (LatLng position) {
+            if (widget.onMapTap != null) {
+              widget.onMapTap!();
+            }
+          },
+          initialCameraPosition: CameraPosition(
+            target: _mapCenter,
+            zoom: 15.0,
+          ),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
+          markers: _markers,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
   }
 }

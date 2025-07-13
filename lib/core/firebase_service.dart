@@ -36,6 +36,7 @@ class FirebaseService {
           isFavorite: data['isFavorite'] ?? false,
           latitude: lat,
           longitude: lon,
+          address: data['adresa'] ?? data['address'] ?? '',
         );
       }).toList();
     } catch (e) {
@@ -62,6 +63,7 @@ class FirebaseService {
           isFavorite: data['isFavorite'] ?? false,
           latitude: (polohaData?['lat'] ?? 0.0).toDouble(),
           longitude: (polohaData?['lng'] ?? 0.0).toDouble(),
+          address: data['adresa'] ?? data['address'] ?? '',
         );
       }
       return null;
@@ -86,6 +88,7 @@ class FirebaseService {
           isFavorite: data['isFavorite'] ?? false,
           latitude: (polohaData?['lat'] ?? 0.0).toDouble(),
           longitude: (polohaData?['lng'] ?? 0.0).toDouble(),
+          address: data['adresa'] ?? data['address'] ?? '',
         );
       }).toList();
     });
@@ -154,6 +157,7 @@ class FirebaseService {
                   isFavorite: data['isFavorite'] ?? false,
                   latitude: lat,
                   longitude: lon,
+                  address: data['adresa'] ?? data['address'] ?? '',
                 );
                 
                 filteredCafes.add(cafe);
@@ -203,6 +207,7 @@ class FirebaseService {
                 isFavorite: data['isFavorite'] ?? false,
                 latitude: lat,
                 longitude: lon,
+                address: data['adresa'] ?? data['address'] ?? '',
               );
               
               filteredCafes.add(cafe);
@@ -440,12 +445,23 @@ class FirebaseService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Používateľ nie je prihlásený');
 
+      // Vytvoríme item s aktuálnym dátumom
+      final itemWithDate = FavoriteItem(
+        type: item.type,
+        id: item.id,
+        name: item.name,
+        imageUrl: item.imageUrl,
+        note: item.note,
+        address: item.address,
+        savedAt: DateTime.now(),
+      );
+
       await _firestore
           .collection('users')
           .doc(user.uid)
           .collection('favorites')
           .doc(item.id)
-          .set(item.toJson());
+          .set(itemWithDate.toJson());
     } catch (e) {
       print('Chyba pri pridávaní do obľúbených: $e');
       throw e;

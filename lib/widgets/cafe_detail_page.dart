@@ -4,6 +4,7 @@ import '../core/models.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/firebase_service.dart';
+import '../core/utils.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/services.dart';
 
@@ -360,7 +361,7 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${widget.cafe.distanceKm.toStringAsFixed(1)} km',
+                    AppUtils.formatDistance(widget.cafe.distanceKm),
                     style: const TextStyle(color: Colors.grey, fontSize: 15),
                   ),
                 ],
@@ -530,7 +531,7 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${widget.cafe.distanceKm.toStringAsFixed(1)} km',
+                      AppUtils.formatDistance(widget.cafe.distanceKm),
                       style: const TextStyle(color: Colors.grey, fontSize: 15),
                     ),
                   ],
