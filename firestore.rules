@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pravidlá pre kaviarne - všetci môžu čítať
+    match /kaviarne/{cafeId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+      
+      // Pravidlá pre recenzie - všetci môžu čítať, len prihlásení môžu písať
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if request.auth != null 
+          && request.auth.uid == resource.data.userId;
+        allow update: if request.auth != null 
+          && request.auth.uid == resource.data.userId;
+        allow delete: if request.auth != null 
+          && request.auth.uid == resource.data.userId;
+      }
+      
+      // Pravidlá pre menu položky
+      match /menu/{menuId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+      
+      // Pravidlá pre otváracie hodiny
+      match /opening_hours/{hoursId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+    }
+    
+    // Pravidlá pre používateľov
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Pravidlá pre obľúbené položky používateľa
+      match /favorites/{favoriteId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}
