@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/models.dart';
+import '../core/theme/app_colors.dart';
 import 'cafe_detail_page.dart';
 
 class CafeInfoBottomSheet extends StatefulWidget {
@@ -94,6 +95,67 @@ class _CafeInfoBottomSheetState extends State<CafeInfoBottomSheet> with TickerPr
         }
       }
     });
+  }
+
+  Widget _buildCafeImage(Cafe cafe) {
+    // Ak nemáme foto_url, zobrazíme fallback ikonu
+    if (cafe.foto_url.isEmpty) {
+      return Container(
+        color: AppColors.grey,
+        child: const Icon(
+          Icons.local_cafe,
+          color: Colors.white70,
+          size: 48,
+        ),
+      );
+    }
+
+    // Skontrolujeme, či je to Google Places API URL
+    final isGooglePlacesUrl = cafe.foto_url.contains('maps.googleapis.com') || 
+                              cafe.foto_url.contains('photoreference');
+
+    // Zobrazíme obrázok z Firebase s error handlingom
+    return Image.network(
+      cafe.foto_url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      errorBuilder: (context, error, stackTrace) {
+        print('Chyba pri načítaní obrázka pre kaviareň ${cafe.name}: $error');
+        
+        // Ak je to Google Places API chyba, zobrazíme špeciálnu ikonu
+        if (isGooglePlacesUrl) {
+          return Container(
+            color: AppColors.grey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.photo_library_outlined,
+                  color: Colors.white70,
+                  size: 32,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Foto nedostupné',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+        
+        // Pre iné chyby zobrazíme generickú ikonu
+        return Container(
+          color: AppColors.grey,
+          child: const Icon(
+            Icons.image_not_supported,
+            color: Colors.white70,
+            size: 48,
+          ),
+        );
+      },
+    );
   }
 
   @override

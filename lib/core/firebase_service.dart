@@ -25,13 +25,15 @@ class FirebaseService {
 
         final lat = (polohaData?['lat'] ?? 0.0).toDouble();
         final lon = (polohaData?['lng'] ?? 0.0).toDouble();
-
+        final fotoUrl = data['foto_url'] ?? '';
+        
         print("Spracovávam '${data['nazov']}': Poloha data: $polohaData, Parsed Lat: $lat, Parsed Lon: $lon");
+        print("  Foto URL: '$fotoUrl' (dĺžka: ${fotoUrl.length})");
         
         return Cafe(
           id: doc.id,
           name: data['nazov'] ?? '',
-          foto_url: data['foto_url'] ?? '',
+          foto_url: fotoUrl,
           rating: (data['rating'] ?? 0.0).toDouble(),
           isFavorite: data['isFavorite'] ?? false,
           latitude: lat,
@@ -54,11 +56,14 @@ class FirebaseService {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         final polohaData = data['poloha'] as Map<String, dynamic>?;
+        final fotoUrl = data['foto_url'] ?? '';
+        
+        print("Načítavam kaviareň ${data['nazov']} s foto_url: '$fotoUrl'");
         
         return Cafe(
           id: doc.id,
           name: data['nazov'] ?? '',
-          foto_url: data['foto_url'] ?? '',
+          foto_url: fotoUrl,
           rating: (data['rating'] ?? 0.0).toDouble(),
           isFavorite: data['isFavorite'] ?? false,
           latitude: (polohaData?['lat'] ?? 0.0).toDouble(),
@@ -79,11 +84,14 @@ class FirebaseService {
       return snapshot.docs.map((doc) {
         final data = doc.data();
         final polohaData = data['poloha'] as Map<String, dynamic>?;
+        final fotoUrl = data['foto_url'] ?? '';
+        
+        print("Stream: Načítavam kaviareň ${data['nazov']} s foto_url: '$fotoUrl'");
         
         return Cafe(
           id: doc.id,
           name: data['nazov'] ?? '',
-          foto_url: data['foto_url'] ?? '',
+          foto_url: fotoUrl,
           rating: (data['rating'] ?? 0.0).toDouble(),
           isFavorite: data['isFavorite'] ?? false,
           latitude: (polohaData?['lat'] ?? 0.0).toDouble(),
@@ -148,11 +156,14 @@ class FirebaseService {
                 final polohaData = data['poloha'] as Map<String, dynamic>?;
                 final lat = (polohaData?['lat'] ?? 0.0).toDouble();
                 final lon = (polohaData?['lng'] ?? 0.0).toDouble();
+                final fotoUrl = data['foto_url'] ?? '';
+                
+                print("  Vytváram Cafe objekt pre '$cafeName' s foto_url: '$fotoUrl'");
                 
                 final cafe = Cafe(
                   id: doc.id,
                   name: cafeName,
-                  foto_url: data['foto_url'] ?? '',
+                  foto_url: fotoUrl,
                   rating: (data['rating'] ?? 0.0).toDouble(),
                   isFavorite: data['isFavorite'] ?? false,
                   latitude: lat,
@@ -198,11 +209,14 @@ class FirebaseService {
               final polohaData = data['poloha'] as Map<String, dynamic>?;
               final lat = (polohaData?['lat'] ?? 0.0).toDouble();
               final lon = (polohaData?['lng'] ?? 0.0).toDouble();
+              final fotoUrl = data['foto_url'] ?? '';
+              
+              print("  Vytváram Cafe objekt pre '$cafeName' s foto_url: '$fotoUrl'");
               
               final cafe = Cafe(
                 id: doc.id,
                 name: cafeName,
-                foto_url: data['foto_url'] ?? '',
+                foto_url: fotoUrl,
                 rating: (data['rating'] ?? 0.0).toDouble(),
                 isFavorite: data['isFavorite'] ?? false,
                 latitude: lat,
@@ -796,6 +810,85 @@ class FirebaseService {
       print("=== KONIEC TESTU ===");
     } catch (e) {
       print("Chyba pri teste kaviarne: $e");
+    }
+  }
+
+  // --- METÓDY PRE RECENZIE ---
+
+  /// Pridá recenziu pre kaviareň
+  Future<void> addReview(Review review) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('Používateľ nie je prihlásený');
+
+      await _firestore
+          .collection('kaviarne')
+          .doc(review.cafeId)
+          .collection('reviews')
+          .doc(review.id)
+          .set(review.toJson());
+
+      print('Recenzia úspešne pridaná: ${review.id}');
+    } catch (e) {
+      print('Chyba pri pridávaní recenzie: $e');
+      throw e;
+    }
+  }
+
+  /// Načíta recenzie pre kaviareň
+  Future<List<Review>> getReviews(String cafeId) async {
+    try {
+      final QuerySnapshot querySnapshot = await _firestore
+          .collection('kaviarne')
+          .doc(cafeId)
+          .collection('reviews')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return Review.fromJson(data);
+      }).toList();
+    } catch (e) {
+      print('Chyba pri načítaní recenzií: $e');
+      return [];
+    }
+  }
+
+  /// Stream pre recenzie v reálnom čase
+  Stream<List<Review>> getReviewsStream(String cafeId) {
+    return _firestore
+        .collection('kaviarne')
+        .doc(cafeId)
+        .collection('reviews')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return Review.fromJson(data);
+      }).toList();
+    });
+  }
+
+
+  /// Skontroluje, či používateľ už napísal recenziu pre kaviareň
+  Future<bool> hasUserReviewed(String cafeId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      final QuerySnapshot querySnapshot = await _firestore
+          .collection('kaviarne')
+          .doc(cafeId)
+          .collection('reviews')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+
+      return querySnapshot.docs.isNotEmpty;
+    } catch (e) {
+      print('Chyba pri kontrole recenzie používateľa: $e');
+      return false;
     }
   }
 } 

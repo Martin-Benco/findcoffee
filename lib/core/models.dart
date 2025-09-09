@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum FavoriteType { cafe, drink, food }
 
@@ -331,4 +332,75 @@ User? getCurrentUser() {
 // Funkcia na získanie emailu aktuálneho používateľa
 String? getCurrentUserEmail() {
   return FirebaseAuth.instance.currentUser?.email;
+}
+
+// Review model
+class Review {
+  final String id;
+  final String cafeId;
+  final String userId;
+  final String userName;
+  final String userEmail;
+  final int rating;
+  final String text;
+  final DateTime createdAt;
+  final String? userInfo; // napr. "18 mesiacov na coffite"
+
+  Review({
+    required this.id,
+    required this.cafeId,
+    required this.userId,
+    required this.userName,
+    required this.userEmail,
+    required this.rating,
+    required this.text,
+    required this.createdAt,
+    this.userInfo,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'cafeId': cafeId,
+    'userId': userId,
+    'userName': userName,
+    'userEmail': userEmail,
+    'rating': rating,
+    'text': text,
+    'createdAt': createdAt.toIso8601String(),
+    'userInfo': userInfo,
+  };
+
+  static Review fromJson(Map<String, dynamic> json) => Review(
+    id: json['id'] ?? '',
+    cafeId: json['cafeId'] ?? '',
+    userId: json['userId'] ?? '',
+    userName: json['userName'] ?? '',
+    userEmail: json['userEmail'] ?? '',
+    rating: json['rating'] ?? 0,
+    text: json['text'] ?? '',
+    createdAt: _parseDateTime(json['createdAt']),
+    userInfo: json['userInfo'],
+  );
+
+  static DateTime _parseDateTime(dynamic createdAt) {
+    if (createdAt == null) return DateTime.now();
+    
+    // Ak je to Firestore Timestamp
+    if (createdAt is Timestamp) {
+      return createdAt.toDate();
+    }
+    
+    // Ak je to String
+    if (createdAt is String) {
+      return DateTime.parse(createdAt);
+    }
+    
+    // Ak je to DateTime
+    if (createdAt is DateTime) {
+      return createdAt;
+    }
+    
+    // Fallback
+    return DateTime.now();
+  }
 } 
