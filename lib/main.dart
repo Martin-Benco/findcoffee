@@ -465,7 +465,7 @@ class _HomePageState extends State<HomePage> {
   final List<Drink> _drinks = const [
     Drink(name: 'Matcha', imageUrl: 'assets/images/matcha.jpg'),
     Drink(name: 'Káva', imageUrl: 'assets/images/kava.jpg'),
-    Drink(name: 'Mojito', imageUrl: 'assets/images/drinky.jpg'),
+    Drink(name: 'Drinky', imageUrl: 'assets/images/drinky.jpg'),
     Drink(name: 'Limonáda', imageUrl: 'assets/images/limonady.jpg'),
     Drink(name: 'Kombucha', imageUrl: 'assets/images/kombucha.jpg'),
   ];
@@ -1533,6 +1533,15 @@ class FavoritesPage extends StatefulWidget {
 class _FavoritesPageState extends State<FavoritesPage> {
   final FirebaseService _firebaseService = FirebaseService();
 
+  void _showInfoDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _InfoDialog(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -1548,7 +1557,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 const Text('Obľúbené', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
                 IconButton(
                   icon: const Icon(Icons.info_outline, size: 26),
-                  onPressed: () {},
+                  onPressed: _showInfoDialog,
                 ),
               ],
             ),
@@ -1745,42 +1754,57 @@ class _FavoriteCafeItem extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
-                                child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              ),
-                              Row(
-                                children: [
-                                  SvgPicture.asset(
-                                    'assets/icons/recenzieHviezdaPlna.svg',
-                                    width: 16,
-                                    height: 16,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    rating.toStringAsFixed(1),
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFD2691E)),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          // Adresa a dátum v jednom riadku
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
                                 child: Text(
-                                  (address != null && address.trim().isNotEmpty)
-                                    ? address
-                                    : 'Adresa nie je dostupná',
-                                  style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                                  name.length > 4 ? '${name.substring(0, name.length - 4)}...' : name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              FutureBuilder<List<Review>>(
+                                future: FirebaseService().getReviews(cafeId ?? ''),
+                                builder: (context, snapshot) {
+                                  double averageRating = 0.0;
+                                  int reviewCount = 0;
+                                  
+                                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                    final reviews = snapshot.data!;
+                                    reviewCount = reviews.length;
+                                    final totalRating = reviews.fold(0, (sum, review) => sum + review.rating);
+                                    averageRating = totalRating / reviewCount;
+                                  } else {
+                                    averageRating = rating; // fallback na pôvodný rating
+                                  }
+                                  
+                                  return Row(
+                                    children: [
+                                      SvgPicture.asset(
+                                        'assets/icons/recenzieHviezdaPlna.svg',
+                                        width: 16,
+                                        height: 16,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        averageRating.toStringAsFixed(1),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFD2691E)),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(' ($reviewCount)', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                    ],
+                                  );
+                                },
+                              ),
                             ],
+                          ),
+                          const SizedBox(height: 2),
+                          // Adresa
+                          Text(
+                            (address != null && address.trim().isNotEmpty)
+                              ? address
+                              : 'Adresa nie je dostupná',
+                            style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -1799,25 +1823,6 @@ class _FavoriteCafeItem extends StatelessWidget {
                       style: const TextStyle(color: Colors.black87, fontSize: 13),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ] else ...[
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () async {
-                      await _showNoteDialog(context, cafeId!, '');
-                    },
-                    child: RichText(
-                      text: const TextSpan(
-                        text: 'Pridať poznámku',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 13,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Colors.black,
-                          decorationThickness: 3.0,
-                        ),
-                      ),
                     ),
                   ),
                 ],
@@ -2681,7 +2686,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               ),
             ),
           ),
-          Text('Kde chceš piť?', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Kam to bude?', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           TextField(
             autofocus: true,
@@ -3063,5 +3068,79 @@ class _MapViewState extends State<_MapView> {
       print('❌ Chyba pri uvoľňovaní map controller: $e');
     }
     super.dispose();
+  }
+}
+
+// Info dialog pre sekciu obľúbených
+class _InfoDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.45,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Nadpis
+          const Text(
+            'Obľúbené kaviarne',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Text
+          const Text(
+            'Tu si môžete prezrieť vaše obľúbené kaviarne. Všetky kaviarne, ktoré si označíte ako obľúbené, sa zobrazia v tomto zozname pre rýchly prístup.',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.black87,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Ďalšie informácie
+          const Text(
+            'Ako pridať kaviareň do obľúbených:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '• Stlačte ikonu srdiečka pri kaviarni na mape\n'
+            '• Alebo stlačte ikonu srdiečka v detailnej stránke kaviarne\n'
+            '• Kaviarne môžete aj odstrániť z obľúbených stlačením srdiečka znovu',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.black87,
+              height: 1.5,
+            ),
+          ),
+          ],
+        ),
+      ),
+    );
   }
 }

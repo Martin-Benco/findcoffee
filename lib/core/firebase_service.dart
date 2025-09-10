@@ -635,6 +635,71 @@ class FirebaseService {
         });
   }
 
+  /// Načíta služby pre kaviareň
+  Future<Map<String, bool?>> getServices(String cafeId) async {
+    try {
+      final DocumentSnapshot doc = await _firestore
+          .collection('kaviarne')
+          .doc(cafeId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        print('=== DEBUG: Načítavam služby pre kaviareň $cafeId ===');
+        print('Všetky kľúče: ${data.keys.toList()}');
+        
+        // Hľadáme pole sluzby
+        if (data.containsKey('sluzby')) {
+          final sluzbyData = data['sluzby'] as Map<String, dynamic>?;
+          if (sluzbyData != null) {
+            print('Našiel som služby: $sluzbyData');
+            // Konvertujeme hodnoty na bool? (true, false, null)
+            final Map<String, bool?> services = {};
+            sluzbyData.forEach((key, value) {
+              if (value == true) {
+                services[key] = true;
+              } else if (value == false) {
+                services[key] = false;
+              } else {
+                services[key] = null; // null pre nezadané
+              }
+            });
+            return services;
+          }
+        }
+      }
+      
+      print('Žiadne služby nenájdené pre kaviareň $cafeId');
+      return {};
+    } catch (e) {
+      print('Chyba pri načítaní služieb: $e');
+      return {};
+    }
+  }
+
+  /// Aktualizuje službu pre kaviareň
+  Future<void> updateService(String cafeId, String serviceName, bool? value) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('Používateľ nie je prihlásený');
+      }
+
+      // Použijeme sluzby.{nazov_sluzby} syntax
+      final fieldPath = 'sluzby.$serviceName';
+      
+      await _firestore
+          .collection('kaviarne')
+          .doc(cafeId)
+          .update({fieldPath: value});
+      
+      print('Aktualizovaná služba $serviceName pre kaviareň $cafeId na hodnotu: $value');
+    } catch (e) {
+      print('Chyba pri aktualizácii služby: $e');
+      throw e;
+    }
+  }
+
   /// Načíta otváracie hodiny pre kaviareň
   Future<List<OpeningHours>> getOpeningHours(String cafeId) async {
     try {

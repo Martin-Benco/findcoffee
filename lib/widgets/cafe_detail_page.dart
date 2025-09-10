@@ -30,12 +30,15 @@ class CafeDetailPage extends StatefulWidget {
 class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStateMixin {
   bool _isFavorite = false;
   bool _isMenuExpanded = false;
+  bool _isServicesExpanded = false;
   final FirebaseService _firebaseService = FirebaseService();
   late AnimationController _animationController;
   late Animation<double> _heightAnimation;
   late Animation<double> _opacityAnimation;
   late AnimationController _menuAnimationController;
   late Animation<double> _menuHeightAnimation;
+  late AnimationController _servicesAnimationController;
+  late Animation<double> _servicesHeightAnimation;
 
   @override
   void initState() {
@@ -53,6 +56,20 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _menuAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Initialize services animation controller
+    _servicesAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    
+    _servicesHeightAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _servicesAnimationController,
       curve: Curves.easeInOut,
     ));
     
@@ -85,6 +102,7 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
   @override
   void dispose() {
     _menuAnimationController.dispose();
+    _servicesAnimationController.dispose();
     if (widget.isPreviewMode) {
       _animationController.dispose();
     }
@@ -164,6 +182,18 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
     }
   }
 
+  void _toggleServicesExpansion() {
+    setState(() {
+      _isServicesExpanded = !_isServicesExpanded;
+    });
+    
+    if (_isServicesExpanded) {
+      _servicesAnimationController.forward();
+    } else {
+      _servicesAnimationController.reverse();
+    }
+  }
+
   void _showReviewForm() {
     showDialog(
       context: context,
@@ -172,6 +202,16 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
         cafeName: widget.cafe.name,
       ),
     );
+  }
+
+  Future<void> _updateService(String serviceName, bool? value) async {
+    try {
+      await _firebaseService.updateService(widget.cafe.id, serviceName, value);
+      print('Služba $serviceName aktualizovaná na hodnotu: $value');
+    } catch (e) {
+      print('Chyba pri aktualizácii služby $serviceName: $e');
+      rethrow; // Re-throw aby sa zobrazil error v UI
+    }
   }
 
   String _formatTimeAgo(DateTime dateTime) {
@@ -294,16 +334,6 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
               ),
             ),
             Positioned(
-              right: 64,
-              top: 16,
-              child: SvgPicture.asset(
-                'assets/icons/Share.svg',
-                width: 30,
-                height: 30,
-                color: Colors.white,
-              ),
-            ),
-            Positioned(
               right: 16,
               top: 16,
               child: GestureDetector(
@@ -350,8 +380,8 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.cafe.name.length > 15
-                        ? widget.cafe.name.substring(0, 15) + '...'
+                      widget.cafe.name.length > 21
+                        ? widget.cafe.name.substring(0, 21) + '...'
                         : widget.cafe.name,
                       style: const TextStyle(
                         fontSize: 22,
@@ -396,26 +426,34 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 22),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.cafe.rating.toStringAsFixed(1),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                      const SizedBox(width: 2),
-                      FutureBuilder<List<Review>>(
-                        future: _firebaseService.getReviews(widget.cafe.id),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData) {
-                            final reviewCount = snapshot.data!.length;
-                            return Text(' ($reviewCount)', style: const TextStyle(color: Colors.grey, fontSize: 13));
-                          }
-                          return const Text(' (0)', style: TextStyle(color: Colors.grey, fontSize: 13));
-                        },
-                      ),
-                    ],
+                  FutureBuilder<List<Review>>(
+                    future: _firebaseService.getReviews(widget.cafe.id),
+                    builder: (context, snapshot) {
+                      double averageRating = 0.0;
+                      int reviewCount = 0;
+                      
+                      if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        final reviews = snapshot.data!;
+                        reviewCount = reviews.length;
+                        final totalRating = reviews.fold(0, (sum, review) => sum + review.rating);
+                        averageRating = totalRating / reviewCount;
+                      } else {
+                        averageRating = widget.cafe.rating; // fallback na pôvodný rating
+                      }
+                      
+                      return Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 22),
+                          const SizedBox(width: 4),
+                          Text(
+                            averageRating.toStringAsFixed(1),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(' ($reviewCount)', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -439,41 +477,20 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
   }
 
   Widget _buildContent() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Carousel obrázkov s overlay ikonami
-          Stack(
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AspectRatio(
-                aspectRatio: 1.5,
-                child: _buildCafeImage(widget.cafe),
-              ),
-              // Overlay ikony
-              Positioned(
-                left: 16,
-                top: 16 + MediaQuery.of(context).padding.top,
-                child: GestureDetector(
-                  onTap: _handleClose,
-                  child: SvgPicture.asset(
-                    'assets/icons/ArrowLeft.svg',
-                    width: 30,
-                    height: 30,
-                    color: Colors.white,
+              // Carousel obrázkov s overlay ikonami
+              Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 1.5,
+                    child: _buildCafeImage(widget.cafe),
                   ),
-                ),
-              ),
-              Positioned(
-                right: 64,
-                top: 16 + MediaQuery.of(context).padding.top,
-                child: SvgPicture.asset(
-                  'assets/icons/Share.svg',
-                  width: 30,
-                  height: 30,
-                  color: Colors.white,
-                ),
-              ),
+                  // Overlay ikony (bez šípky späť)
               Positioned(
                 right: 16,
                 top: 16 + MediaQuery.of(context).padding.top,
@@ -521,8 +538,8 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.cafe.name.length > 15
-                          ? widget.cafe.name.substring(0, 15) + '...'
+                        widget.cafe.name.length > 21
+                          ? widget.cafe.name.substring(0, 21) + '...'
                           : widget.cafe.name,
                         style: const TextStyle(
                           fontSize: 22,
@@ -567,26 +584,34 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.amber, size: 22),
-                        const SizedBox(width: 4),
-                        Text(
-                          widget.cafe.rating.toStringAsFixed(1),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                        ),
-                        const SizedBox(width: 2),
-                        FutureBuilder<List<Review>>(
-                          future: _firebaseService.getReviews(widget.cafe.id),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              final reviewCount = snapshot.data!.length;
-                              return Text(' ($reviewCount)', style: const TextStyle(color: Colors.grey, fontSize: 13));
-                            }
-                            return const Text(' (0)', style: TextStyle(color: Colors.grey, fontSize: 13));
-                          },
-                        ),
-                      ],
+                    FutureBuilder<List<Review>>(
+                      future: _firebaseService.getReviews(widget.cafe.id),
+                      builder: (context, snapshot) {
+                        double averageRating = 0.0;
+                        int reviewCount = 0;
+                        
+                        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                          final reviews = snapshot.data!;
+                          reviewCount = reviews.length;
+                          final totalRating = reviews.fold(0, (sum, review) => sum + review.rating);
+                          averageRating = totalRating / reviewCount;
+                        } else {
+                          averageRating = widget.cafe.rating; // fallback na pôvodný rating
+                        }
+                        
+                        return Row(
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 22),
+                            const SizedBox(width: 4),
+                            Text(
+                              averageRating.toStringAsFixed(1),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(' ($reviewCount)', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -726,42 +751,91 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Toto miesto ponúka:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {},
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size(0, 0)),
-                          child: Text(
-                            'Myslíte si, že toto miesto ponúka viac?',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              decoration: TextDecoration.underline,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                // Services header s šípkou
+                GestureDetector(
+                  onTap: _toggleServicesExpansion,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Toto miesto ponúka:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                      AnimatedRotation(
+                        turns: _isServicesExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 28,
+                          color: Colors.black54,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 18),
-                _ServiceRow(label: 'Wifi'),
-                const SizedBox(height: 18),
-                _ServiceRow(label: 'Parking'),
-                const SizedBox(height: 18),
-                _ServiceRow(label: 'Výhľad'),
+                // Expandable services content
+                AnimatedBuilder(
+                  animation: _servicesHeightAnimation,
+                  builder: (context, child) {
+                    return ClipRect(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        heightFactor: _servicesHeightAnimation.value,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () {},
+                        style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size(0, 0)),
+                        child: const Text('Myslíte si, že toto miesto ponúka viac?', style: TextStyle(fontSize: 14, color: Colors.black54, decoration: TextDecoration.underline)),
+                      ),
+                      const SizedBox(height: 16),
+                      FutureBuilder<Map<String, bool?>>(
+                        future: _firebaseService.getServices(widget.cafe.id),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          
+                          if (snapshot.hasError) {
+                            return const Center(
+                              child: Text('Chyba pri načítaní služieb', style: TextStyle(color: Colors.grey)),
+                            );
+                          }
+                          
+                          final services = snapshot.data ?? {};
+                          
+                          if (services.isEmpty) {
+                            return const Center(
+                              child: Text('Žiadne služby nie sú dostupné', style: TextStyle(color: Colors.grey)),
+                            );
+                          }
+                          
+                          return Column(
+                            children: services.entries.map((entry) {
+                              final serviceName = entry.key;
+                              final serviceValue = entry.value;
+                              
+                              return Column(
+                                children: [
+                                  _ServiceRow(
+                                    label: serviceName,
+                                    value: serviceValue,
+                                    cafeId: widget.cafe.id,
+                                    onValueChanged: _updateService,
+                                  ),
+                                  const SizedBox(height: 18),
+                                ],
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -948,65 +1022,32 @@ class _CafeDetailPageState extends State<CafeDetailPage> with TickerProviderStat
               ],
             ),
           ),
-          // Divider
-          Center(
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              child: const Divider(thickness: 1, height: 1),
-            ),
-          ),
-          // Kontakt sekcia
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Kontakt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Icon(Icons.phone, size: 32, color: Colors.black87),
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text('0915 123 456', style: TextStyle(fontSize: 16)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Icon(Icons.mail, size: 32, color: Colors.black87),
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text('matonoob@gmail.com', style: TextStyle(fontSize: 16)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF603013),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                    ),
-                    child: const Text('Napísať správu', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          
         ],
       ),
+        ),
+        // Fixná šípka späť - zostane na vrchu aj pri scrollovaní
+        Positioned(
+          left: 16,
+          top: 16 + MediaQuery.of(context).padding.top,
+          child: GestureDetector(
+            onTap: _handleClose,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: SvgPicture.asset(
+                'assets/icons/ArrowLeft.svg',
+                width: 30,
+                height: 30,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1148,25 +1189,157 @@ class _MenuItemRow extends StatelessWidget {
 }
 
 // Pridám widget pre službu
-class _ServiceRow extends StatelessWidget {
+class _ServiceRow extends StatefulWidget {
   final String label;
-  const _ServiceRow({required this.label});
+  final bool? value;
+  final String cafeId;
+  final Function(String, bool?) onValueChanged;
+  
+  const _ServiceRow({
+    required this.label, 
+    this.value, 
+    required this.cafeId,
+    required this.onValueChanged,
+  });
+
+  @override
+  State<_ServiceRow> createState() => _ServiceRowState();
+}
+
+class _ServiceRowState extends State<_ServiceRow> {
+  bool? _currentValue;
+  bool _isUpdating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentValue = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(_ServiceRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _currentValue = widget.value;
+    }
+  }
+
+  void _showServiceModal() {
+    showDialog(
+      context: context,
+      builder: (context) => _ServiceSelectionModal(
+        serviceName: widget.label,
+        currentValue: _currentValue,
+        onValueSelected: _updateValue,
+      ),
+    );
+  }
+
+  Future<void> _updateValue(bool? newValue) async {
+    if (_isUpdating) return;
+
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      // Aktualizujeme lokálny stav
+      setState(() {
+        _currentValue = newValue;
+      });
+
+      // Zavoláme callback pre aktualizáciu v databáze
+      await widget.onValueChanged(widget.label, newValue);
+    } catch (e) {
+      // V prípade chyby vrátime pôvodnú hodnotu
+      setState(() {
+        _currentValue = widget.value;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba pri aktualizácii: $e')),
+      );
+    } finally {
+      setState(() {
+        _isUpdating = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.black12,
-            borderRadius: BorderRadius.circular(8),
-          ),
+    // Určíme farbu a text podľa hodnoty
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+    
+    if (_currentValue == true) {
+      statusColor = Colors.green;
+      statusText = 'Áno';
+      statusIcon = Icons.check_circle;
+    } else if (_currentValue == false) {
+      statusColor = Colors.red;
+      statusText = 'Nie';
+      statusIcon = Icons.cancel;
+    } else {
+      statusColor = Colors.grey;
+      statusText = 'Nezadané';
+      statusIcon = Icons.help_outline;
+    }
+
+    return GestureDetector(
+      onTap: _showServiceModal,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: _isUpdating ? Colors.grey.withOpacity(0.1) : null,
         ),
-        const SizedBox(width: 18),
-        Text(label, style: const TextStyle(fontSize: 18)),
-      ],
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Text(
+                widget.label, 
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (_isUpdating)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Row(
+                children: [
+                  Icon(
+                    statusIcon,
+                    color: statusColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: statusColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1292,6 +1465,147 @@ class _ReviewItem extends StatelessWidget {
             child: const Text('Ukázať viac', style: TextStyle(fontSize: 14, color: Colors.black54, decoration: TextDecoration.underline)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Modal pre výber služby
+class _ServiceSelectionModal extends StatelessWidget {
+  final String serviceName;
+  final bool? currentValue;
+  final Function(bool?) onValueSelected;
+
+  const _ServiceSelectionModal({
+    required this.serviceName,
+    required this.currentValue,
+    required this.onValueSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Názov služby
+            Text(
+              serviceName,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.black,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            
+            // Tlačidlá pre výber
+            Row(
+              children: [
+                // Áno tlačidlo
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      onValueSelected(true);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      'Áno',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                
+                // Nie tlačidlo
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      onValueSelected(false);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      'Nie',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Nezadané tlačidlo
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onValueSelected(null);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey,
+                  side: const BorderSide(color: Colors.grey, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text(
+                  'Nezadané',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Zrušiť tlačidlo
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Zrušiť',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
