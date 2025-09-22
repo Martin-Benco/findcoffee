@@ -3,7 +3,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-enum SortOption { distance, rating, name }
+enum SortOption { distance, rating }
 enum FilterFeatures { wifi, parking, menu }
 
 class FilterPage extends StatefulWidget {
@@ -63,73 +63,62 @@ class _FilterPageState extends State<FilterPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                // Krížik vľavo
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Icon(
-                    Icons.close,
-                    size: 24,
-                    color: Color(0xFF603013),
-                  ),
-                ),
-                // Názov v strede
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'Filtre',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF603013),
-                      ),
-                    ),
-                  ),
-                ),
-                // Resetovať vpravo - zobraz len ak je niečo aktívne
-                if (_selectedSort != null || _selectedMinRating != null || _selectedMaxDistance != null || _selectedFeatures.isNotEmpty)
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedSort = null;
-                        _selectedMinRating = null;
-                        _selectedMaxDistance = null;
-                        _selectedFeatures.clear();
-                        _hasUserChangedSort = false;
-                        _hasUserChangedRating = false;
-                        _hasUserChangedDistance = false;
-                        _hasUserChangedFeatures = false;
-                      });
-                      widget.onApplyFilters({
-                        'sort': null,
-                        'minRating': null,
-                        'maxDistance': null,
-                        'features': <FilterFeatures>[]
-                      });
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text(
-                      'Resetovať',
-                      style: TextStyle(
-                        color: Color(0xFF603013),
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Color(0xFF603013),
           ),
+        ),
+        title: const Text(
+          'Filtre',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF603013),
+          ),
+        ),
+        actions: [
+          // Resetovať vpravo - zobraz len ak je niečo aktívne
+          if (_selectedSort != null || _selectedMinRating != null || _selectedMaxDistance != null || _selectedFeatures.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedSort = null;
+                  _selectedMinRating = null;
+                  _selectedMaxDistance = null;
+                  _selectedFeatures.clear();
+                  _hasUserChangedSort = false;
+                  _hasUserChangedRating = false;
+                  _hasUserChangedDistance = false;
+                  _hasUserChangedFeatures = false;
+                });
+                widget.onApplyFilters({
+                  'sort': null,
+                  'minRating': null,
+                  'maxDistance': null,
+                  'features': <FilterFeatures>[]
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Resetovať',
+                style: TextStyle(
+                  color: Color(0xFF603013),
+                  fontSize: 16,
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
           
           // Content
           Expanded(
@@ -172,7 +161,8 @@ class _FilterPageState extends State<FilterPage> {
             child: SizedBox(
               width: double.infinity,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
                 child: ElevatedButton(
                   onPressed: _hasChanges() ? _applyFilters : null,
                   style: ButtonStyle(
@@ -208,13 +198,20 @@ class _FilterPageState extends State<FilterPage> {
                     padding: MaterialStateProperty.all(
                       const EdgeInsets.symmetric(vertical: 16),
                     ),
+                    overlayColor: MaterialStateProperty.resolveWith<Color>((states) {
+                      if (states.contains(MaterialState.pressed)) {
+                        return const Color(0xFF603013).withOpacity(0.1);
+                      }
+                      return Colors.transparent;
+                    }),
                   ),
-                  child: const Text(
-                    'Použiť',
-                    style: TextStyle(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
+                    child: const Text('Použiť'),
                   ),
                 ),
               ),
@@ -250,24 +247,39 @@ class _FilterPageState extends State<FilterPage> {
               }
             });
           },
-          child: ListTile(
-            leading: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? const Color(0xFF603013) : Colors.grey,
-                  width: 2,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: ListTile(
+              leading: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF603013) : Colors.grey,
+                    width: 2,
+                  ),
+                  color: isSelected ? const Color(0xFF603013) : Colors.transparent,
                 ),
-                color: isSelected ? const Color(0xFF603013) : Colors.transparent,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: isSelected ? 1.0 : 0.0,
+                  child: const Icon(Icons.circle, size: 16, color: Colors.white),
+                ),
               ),
-              child: isSelected
-                  ? const Icon(Icons.circle, size: 16, color: Colors.white)
-                  : null,
+              title: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  color: isSelected ? const Color(0xFF603013) : Colors.black87,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+                child: Text(_getSortOptionText(option)),
+              ),
+              contentPadding: EdgeInsets.zero,
             ),
-            title: Text(_getSortOptionText(option)),
-            contentPadding: EdgeInsets.zero,
           ),
         );
       }).toList(),
@@ -280,8 +292,6 @@ class _FilterPageState extends State<FilterPage> {
         return 'Vzdialenosť (najbližšie)';
       case SortOption.rating:
         return 'Hodnotenie (najlepšie)';
-      case SortOption.name:
-        return 'Názov (A-Z)';
     }
   }
 
@@ -396,7 +406,9 @@ class _FilterPageState extends State<FilterPage> {
   Widget _buildOptionButton(String text, bool isSelected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF603013).withOpacity(0.1) : Colors.grey[100],
@@ -407,13 +419,14 @@ class _FilterPageState extends State<FilterPage> {
           ),
         ),
         child: Center(
-          child: Text(
-            text,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
             style: TextStyle(
               fontSize: 16,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               color: isSelected ? const Color(0xFF603013) : Colors.black87,
             ),
+            child: Text(text),
           ),
         ),
       ),
@@ -451,7 +464,9 @@ class _FilterPageState extends State<FilterPage> {
           }
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF603013).withOpacity(0.1) : Colors.grey[100],
@@ -463,31 +478,42 @@ class _FilterPageState extends State<FilterPage> {
         ),
         child: Row(
           children: [
-            SvgPicture.asset(
-              iconPath,
-              width: 24,
-              height: 24,
-              colorFilter: ColorFilter.mode(
-                isSelected ? const Color(0xFF603013) : Colors.grey[600]!,
-                BlendMode.srcIn,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              child: SvgPicture.asset(
+                iconPath,
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  isSelected ? const Color(0xFF603013) : Colors.grey[600]!,
+                  BlendMode.srcIn,
+                ),
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              title,
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isSelected ? const Color(0xFF603013) : Colors.black87,
               ),
+              child: Text(title),
             ),
             const Spacer(),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle,
-                color: Color(0xFF603013),
-                size: 20,
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: isSelected ? 1.0 : 0.0,
+              child: AnimatedScale(
+                duration: const Duration(milliseconds: 200),
+                scale: isSelected ? 1.0 : 0.0,
+                child: const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF603013),
+                  size: 20,
+                ),
               ),
+            ),
           ],
         ),
       ),

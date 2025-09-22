@@ -716,7 +716,7 @@ class _HomePageState extends State<HomePage> {
 
     _sheetController.animateTo(
       1.0, // maxChildSize
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
     );
   }
@@ -772,7 +772,6 @@ class _HomePageState extends State<HomePage> {
     final List<Map<String, dynamic>> chips = [];
     if (filters['sort'] != null) {
       String label = '';
-      if (filters['sort'] == SortOption.name) label = 'A-Z';
       if (filters['sort'] == SortOption.rating) label = 'Hodnotenie';
       if (filters['sort'] == SortOption.distance) label = 'Vzdialenosť';
       chips.add({'type': 'sort', 'label': label, 'sort': filters['sort']});
@@ -970,7 +969,7 @@ class _HomePageState extends State<HomePage> {
           cafes: _cafes,
           onCafeSelected: _onCafeSelected,
           onMapTap: _showCafeSheet ? _closeCafeSheet : null,
-          sheetExtent: _sheetExtent, // cca výška search baru
+          sheetExtent: _sheetExtent,
         ),
         if (!_showCafeSheet) ...[
           // Menu button
@@ -1019,11 +1018,15 @@ class _HomePageState extends State<HomePage> {
             snapSizes: const [0.15, 0.75, 1.0],
             builder: (context, scrollController) {
               return NotificationListener<DraggableScrollableNotification>(
-                onNotification: (notification) {
-                  _onSheetChanged(notification.extent);
-                  return true;
-                },
-                child: Container(
+                  onNotification: (notification) {
+                    // Aktualizujem výšku mapy v reálnom čase počas ťahania
+                    setState(() {
+                      _sheetExtent = notification.extent;
+                    });
+                    _onSheetChanged(notification.extent);
+                    return true;
+                  },
+                  child: Container(
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(0)), // Odstránený horný radius
@@ -1136,15 +1139,15 @@ class _HomePageState extends State<HomePage> {
                                     else
                                       GestureDetector(
                                         onTap: () async {
-                                          await showModalBottomSheet(
-                                            context: context,
-                                            isScrollControlled: true,
-                                            backgroundColor: Colors.transparent,
-                                            builder: (context) => FilterPage(
-                                              onApplyFilters: (filters) {
-                                                _applyFiltersAndOpenSearch(filters);
-                                              },
-                                              initialFilters: _getCurrentFilters(),
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => FilterPage(
+                                                onApplyFilters: (filters) {
+                                                  _applyFiltersAndOpenSearch(filters);
+                                                },
+                                                initialFilters: _getCurrentFilters(),
+                                              ),
                                             ),
                                           );
                                         },
@@ -1361,7 +1364,18 @@ class _CafeListItem extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12.0),
-                  child: _buildCafeImage(cafe),
+                  child: Image.network(
+                    cafe.foto_url,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 80,
+                      height: 80,
+                      color: AppColors.grey,
+                      child: const Icon(Icons.image_not_supported, color: Colors.white70),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -1438,88 +1452,6 @@ class _CafeListItem extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _buildCafeImage(Cafe cafe) {
-    try {
-      // Ak nemáme foto_url, zobrazíme fallback ikonu
-      if (cafe.foto_url.isEmpty) {
-        return Container(
-          width: 80,
-          height: 80,
-          color: AppColors.grey,
-          child: const Icon(
-            Icons.local_cafe,
-            color: Colors.white70,
-            size: 32,
-          ),
-        );
-      }
-
-      // Skontrolujeme, či je to Google Places API URL
-      final isGooglePlacesUrl = cafe.foto_url.contains('maps.googleapis.com') || 
-                                cafe.foto_url.contains('photoreference');
-
-      // Zobrazíme obrázok z Firebase s error handlingom
-      return Image.network(
-        cafe.foto_url,
-        width: 80,
-        height: 80,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          print('Chyba pri načítaní obrázka pre kaviareň ${cafe.name}: $error');
-          
-          // Ak je to Google Places API chyba, zobrazíme špeciálnu ikonu
-          if (isGooglePlacesUrl) {
-            return Container(
-              width: 80,
-              height: 80,
-              color: AppColors.grey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.photo_library_outlined,
-                    color: Colors.white70,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Foto nedostupné',
-                    style: TextStyle(color: Colors.white70, fontSize: 8),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
-          
-          // Pre iné chyby zobrazíme generickú ikonu
-          return Container(
-            width: 80,
-            height: 80,
-            color: AppColors.grey,
-            child: const Icon(
-              Icons.image_not_supported,
-              color: Colors.white70,
-              size: 32,
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      print('Chyba pri načítaní obrázku kaviarne: $e');
-      return Container(
-        width: 80,
-        height: 80,
-        color: AppColors.grey,
-        child: const Icon(
-          Icons.image_not_supported,
-          color: Colors.white70,
-          size: 32,
-        ),
-      );
-    }
   }
 }
 
@@ -1649,7 +1581,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                               }
                             }
                             return _FavoriteCafeItem(
-                              imageUrl: cafe?.foto_url ?? fav.imageUrl,
+                              imageUrl: fav.imageUrl,
                               name: fav.name,
                               address: address,
                               date: formattedDate,
@@ -1740,7 +1672,9 @@ class _FavoriteCafeItem extends StatelessWidget {
                     // Mini obrázok
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: _buildFavoriteCafeImage(imageUrl),
+                      child: (imageUrl != null && imageUrl!.isNotEmpty && _isNetworkImage(imageUrl))
+                          ? Image.network(imageUrl!, width: 54, height: 54, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)))
+                          : Container(width: 54, height: 54, color: Colors.black12, child: const Icon(Icons.local_cafe, color: Colors.brown)),
                     ),
                     const SizedBox(width: 12),
                     // Informácie: názov, adresa, recenzie
@@ -1871,88 +1805,6 @@ class _FavoriteCafeItem extends StatelessWidget {
     );
     if (result != null) {
       // Po uložení sa UI automaticky refreshne cez StreamBuilder
-    }
-  }
-
-  Widget _buildFavoriteCafeImage(String? imageUrl) {
-    try {
-      // Ak nemáme imageUrl, zobrazíme fallback ikonu
-      if (imageUrl == null || imageUrl.isEmpty || !_isNetworkImage(imageUrl)) {
-        return Container(
-          width: 54,
-          height: 54,
-          color: Colors.black12,
-          child: const Icon(
-            Icons.local_cafe,
-            color: Colors.brown,
-            size: 24,
-          ),
-        );
-      }
-
-      // Skontrolujeme, či je to Google Places API URL
-      final isGooglePlacesUrl = imageUrl.contains('maps.googleapis.com') || 
-                                imageUrl.contains('photoreference');
-
-      // Zobrazíme obrázok z Firebase s error handlingom
-      return Image.network(
-        imageUrl,
-        width: 54,
-        height: 54,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          print('Chyba pri načítaní obrázka pre obľúbenú kaviareň: $error');
-          
-          // Ak je to Google Places API chyba, zobrazíme špeciálnu ikonu
-          if (isGooglePlacesUrl) {
-            return Container(
-              width: 54,
-              height: 54,
-              color: Colors.black12,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.photo_library_outlined,
-                    color: Colors.brown,
-                    size: 20,
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Foto nedostupné',
-                    style: TextStyle(color: Colors.brown, fontSize: 8),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
-          
-          // Pre iné chyby zobrazíme generickú ikonu
-          return Container(
-            width: 54,
-            height: 54,
-            color: Colors.black12,
-            child: const Icon(
-              Icons.local_cafe,
-              color: Colors.brown,
-              size: 24,
-            ),
-          );
-        },
-      );
-    } catch (e) {
-      print('Chyba pri načítaní obrázku obľúbenej kaviarne: $e');
-      return Container(
-        width: 54,
-        height: 54,
-        color: Colors.black12,
-        child: const Icon(
-          Icons.local_cafe,
-          color: Colors.brown,
-          size: 24,
-        ),
-      );
     }
   }
 }
@@ -2868,7 +2720,7 @@ class _MapViewState extends State<_MapView> {
   BitmapDescriptor? _customMarkerIcon;
 
   static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(48.1486, 17.1077), // Bratislava
+    target: LatLng(48.1486, 17.1077),
     zoom: 15.0,
   );
 
@@ -2879,29 +2731,21 @@ class _MapViewState extends State<_MapView> {
     _loadMapStyle();
   }
 
+
   double get _mapHeight {
-    try {
-      final screenHeight = MediaQuery.of(context).size.height;
-      final sheetHeight = screenHeight * widget.sheetExtent;
-      final googleLogoPadding = 40.0;
-      final height = screenHeight - sheetHeight + googleLogoPadding;
-      return height < 0 ? 0 : height;
-    } catch (e) {
-      print('❌ Chyba pri výpočte výšky mapy: $e');
-      return 300.0; // Fallback výška
-    }
+    final screenHeight = MediaQuery.of(context).size.height;
+    final sheetHeight = screenHeight * widget.sheetExtent;
+    final googleLogoPadding = 40.0;
+    final height = screenHeight - sheetHeight + googleLogoPadding;
+    // Zabezpečujem, aby sa mapa vždy prispôsobila
+    return height < 50 ? 50 : height;
   }
 
   LatLng get _mapCenter {
-    try {
-      if (widget.currentPosition != null) {
-        return LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude);
-      }
-      return _initialPosition.target;
-    } catch (e) {
-      print('❌ Chyba pri získavaní centra mapy: $e');
-      return _initialPosition.target;
+    if (widget.currentPosition != null) {
+      return LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude);
     }
+    return _initialPosition.target;
   }
 
   Future<void> _loadCustomMarkerIcon() async {
@@ -2910,11 +2754,8 @@ class _MapViewState extends State<_MapView> {
         const ImageConfiguration(size: Size(96, 64)),
         'assets/icons/kavamark.png',
       );
-      print('✅ Custom marker ikona úspešne načítaná');
       _updateMarkers();
     } catch (e) {
-      print('❌ Chyba pri načítaní custom marker ikony: $e');
-      print('Používam default marker ikonu');
       _customMarkerIcon = BitmapDescriptor.defaultMarker;
       _updateMarkers();
     }
@@ -2926,10 +2767,8 @@ class _MapViewState extends State<_MapView> {
       setState(() {
         _mapStyle = styleString;
       });
-      print('✅ Mapový štýl úspešne načítaný');
     } catch (e) {
       print('❌ Chyba pri načítaní mapového štýlu: $e');
-      print('Používam default mapový štýl');
     }
   }
 
@@ -2937,136 +2776,110 @@ class _MapViewState extends State<_MapView> {
   void didUpdateWidget(covariant _MapView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.cafes != oldWidget.cafes) {
-      try {
-        _updateMarkers();
-      } catch (e) {
-        print('❌ Chyba pri aktualizácii markerov v didUpdateWidget: $e');
-      }
+      _updateMarkers();
     }
     if (widget.currentPosition != null && widget.currentPosition != oldWidget.currentPosition) {
-      try {
-        _mapController?.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
-              zoom: 15.0,
-            ),
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude),
+            zoom: 15.0,
           ),
-        );
-        print('✅ Kamera úspešne presunutá na novú polohu');
-      } catch (e) {
-        print('❌ Chyba pri presúvaní kamery na novú polohu: $e');
-      }
+        ),
+      );
+    }
+    // Aktualizujem mapu keď sa zmení sheetExtent
+    if (oldWidget.sheetExtent != widget.sheetExtent) {
+      setState(() {
+        // Force rebuild mapy s novou výškou
+      });
     }
   }
 
   void _updateMarkers() {
-    try {
-      setState(() {
-        _markers = widget.cafes.map((cafe) {
-          return Marker(
-            markerId: MarkerId(cafe.id),
-            position: LatLng(cafe.latitude, cafe.longitude),
-            icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
-            infoWindow: InfoWindow(title: cafe.name),
-            onTap: () {
-              if (widget.onCafeSelected != null) {
-                widget.onCafeSelected!(cafe);
-              }
-            },
-          );
-        }).toSet();
-      });
-      print('✅ Markery úspešne aktualizované: ${_markers.length} markerov');
-    } catch (e) {
-      print('❌ Chyba pri aktualizácii markerov: $e');
-    }
+    setState(() {
+      _markers = widget.cafes.map((cafe) {
+        return Marker(
+          markerId: MarkerId(cafe.id),
+          position: LatLng(cafe.latitude, cafe.longitude),
+          icon: _customMarkerIcon ?? BitmapDescriptor.defaultMarker,
+          infoWindow: InfoWindow(title: cafe.name),
+          onTap: () {
+            if (widget.onCafeSelected != null) {
+              widget.onCafeSelected!(cafe);
+            }
+          },
+        );
+      }).toSet();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    try {
-      if (widget.sheetExtent >= 0.99) {
-        return const SizedBox.shrink();
-      }
-      return AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        height: _mapHeight,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: 40),
-          child: GoogleMap(
-            onMapCreated: (GoogleMapController controller) {
-              _mapController = controller;
-              
-              if (_mapStyle != null) {
-                try {
-                  controller.setMapStyle(_mapStyle!);
-                  print('✅ Mapový štýl úspešne aplikovaný');
-                } catch (e) {
-                  print('❌ Chyba pri aplikovaní mapového štýlu: $e');
-                }
-              }
-              
-              if (widget.currentPosition != null) {
-                try {
-                  controller.animateCamera(
-                    CameraUpdate.newCameraPosition(
-                      CameraPosition(
-                        target: _mapCenter,
-                        zoom: 15.0,
-                      ),
-                    ),
-                  );
-                  print('✅ Kamera úspešne presunutá na aktuálnu polohu');
-                } catch (e) {
-                  print('❌ Chyba pri presúvaní kamery: $e');
-                }
-              }
-            },
-            onTap: (LatLng position) {
-              try {
-                if (widget.onMapTap != null) {
-                  widget.onMapTap!();
-                }
-              } catch (e) {
-                print('❌ Chyba pri spracovaní tap na mape: $e');
-              }
-            },
-            initialCameraPosition: CameraPosition(
-              target: _mapCenter,
-              zoom: 15.0,
-            ),
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            markers: _markers,
-          ),
-        ),
-      );
-    } catch (e) {
-      print('❌ Chyba pri buildovaní mapy: $e');
-      return Container(
-        color: AppColors.grey,
-        child: const Center(
-          child: Text(
-            'Chyba pri načítaní mapy',
-            style: TextStyle(color: Colors.white70),
-          ),
-        ),
-      );
+    if (widget.sheetExtent >= 0.99) {
+      return const SizedBox.shrink();
     }
+    
+    final screenHeight = MediaQuery.of(context).size.height;
+    final mapHeight = _mapHeight;
+    
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: screenHeight, // Mapa je vždy na plnú výšku
+      child: ClipRect(
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: mapHeight / screenHeight, // Oreze mapu podľa potreby
+          child: Container(
+            height: screenHeight, // Mapa je vždy na plnú výšku
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 40),
+              child: GoogleMap(
+          onMapCreated: (GoogleMapController controller) {
+            _mapController = controller;
+            
+            if (_mapStyle != null) {
+              controller.setMapStyle(_mapStyle!);
+            }
+            
+            if (widget.currentPosition != null) {
+              controller.animateCamera(
+                CameraUpdate.newCameraPosition(
+                  CameraPosition(
+                    target: _mapCenter,
+                    zoom: 15.0,
+                  ),
+                ),
+              );
+            }
+          },
+          onTap: (LatLng position) {
+            if (widget.onMapTap != null) {
+              widget.onMapTap!();
+            }
+          },
+          initialCameraPosition: CameraPosition(
+            target: _mapCenter,
+            zoom: 15.0,
+          ),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
+          markers: _markers,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    try {
-      _mapController?.dispose();
-      print('✅ Map controller úspešne uvoľnený');
-    } catch (e) {
-      print('❌ Chyba pri uvoľňovaní map controller: $e');
-    }
+    _mapController?.dispose();
     super.dispose();
   }
 }
